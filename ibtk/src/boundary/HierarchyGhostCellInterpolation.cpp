@@ -188,6 +188,11 @@ HierarchyGhostCellInterpolation::initializeOperatorState(
                  d_grid_geom->addSpatialCoarsenOperator(new CartSideDoubleCubicCoarsen()););
 
     // Setup cached coarsen algorithms and schedules.
+    // The general coarsen sequence is:
+    // 1) Create a CoarsenOperator that knows how to coarsen data.
+    // 2) Register the operator with a CoarsenAlgorithm.
+    // 3) Create a CoarsenSchedule with the algorithm to coarsen data.
+    // 4) Coarsen data using the schedule.
     VariableDatabase<NDIM>* var_db = VariableDatabase<NDIM>::getDatabase();
     bool registered_coarsen_op = false;
     d_coarsen_alg = new CoarsenAlgorithm<NDIM>();
@@ -225,6 +230,12 @@ HierarchyGhostCellInterpolation::initializeOperatorState(
     }
 
     // Setup cached refine algorithms and schedules.
+    // The general refine sequence is:
+    // 1) Create a RefineOperator that knows how to refine data.
+    // 2) Register the operator with a RefineAlgorithm.
+    // 3) Create a RefinePatchStrategy to fill in data at coarse fine interfaces and physical boundaries.
+    // 4) Create a RefineSchedule using the algorithm and RefinePatchStrategy.
+    // 5) Refine data using the schedule.
     d_cf_bdry_ops.resize(d_transaction_comps.size());
     d_extrap_bc_ops.resize(d_transaction_comps.size());
     d_cc_robin_bc_ops.resize(d_transaction_comps.size());

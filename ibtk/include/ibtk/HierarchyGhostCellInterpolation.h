@@ -86,9 +86,21 @@ namespace IBTK
  * required to set ghost cell values at physical and coarse-fine boundaries
  * across a range of levels of a locally refined patch hierarchy.
  *
+ * The general process of utilizing this class is:
+ * 1) Create an InterpolationTransactionComponent object for each patch index needing ghost cell values.
+ * 2) Initialize the HierarchyGhostCellInterpolation object with the InterpolationTransactionComponent's and the patch
+ * hierarchy.
+ * 3) Call the routine fillData().
+ *
+ * This class computes the coarse-fine interpolation first, then extrapolates physical boundaries, and finally fills in
+ * physical boundary conditions.
+ *
  * \note In cases where physical boundary conditions are set via extrapolation
  * from interior values, setting ghost cell values may require both coarsening
  * and refining.
+ *
+ * \note Currently only supports coarse-fine interpolation, boundary extrapolation, and physical boundary interpolation
+ * for side or cell centered patch data indices.
  */
 class HierarchyGhostCellInterpolation : public SAMRAI::tbox::DescribedClass
 {
@@ -98,6 +110,12 @@ public:
      * HierarchyGhostCellInterpolation::InterpolationTransactionComponent
      * encapsulates options for filling ghost cell values via class
      * HierarchyGhostCellInterpolation.
+     *
+     * Refine and coarsening operator's must first be registered with the grid geometry before
+     * HierarchyGhostCellInterpolation can use them.
+     *
+     * Coarse fine boundary interpolation currently is only available for side and cell centered data. The interpolation
+     * routines use a quadratic interpolation scheme.
      */
     class InterpolationTransactionComponent
     {
@@ -106,6 +124,18 @@ public:
 
         /*!
          * \brief Default constructor.
+         *
+         * \param data_index patch data index gives the destination and source patch data indices.
+         * \param refine_op_name string giving the type of refine operator to be used for refinement.
+         * \param use_cf_bdry_interpolation bool giving whether coarse-fine interface interpolation should be done.
+         * \param coarsen_op_name string giving the type of coarsen operator to be used for coarsening.
+         * \param phys_bdry_extrap_type string giving the type of extrapolation to use for physical boundary ghost
+         * cells.
+         * \param consistent_type_2_bdry bool giving whether a type-2 boundaries should use consistent interpolation
+         * \param robin_bc_coef pointer to RobinBcCoefStrategy<NDIM> giving the physical boundary conditions to be used
+         * for filling ghost cells.
+         * \param fill_pattern pointer to a VariableFillPattern<NDIM> indicating the type of region to fill ghost cell
+         * values.
          */
         inline InterpolationTransactionComponent(
             int data_idx = -1,
@@ -133,6 +163,22 @@ public:
 
         /*!
          * \brief Alternate constructor.
+         *
+         * \param data_index patch data index gives the destination and source patch data indices.
+         * \param refine_op_name string giving the type of refine operator to be used for refinement.
+         * \param use_cf_bdry_interpolation bool giving whether coarse-fine interfa
+ce interpolation should be done.
+         * \param coarsen_op_name string giving the type of coarsen operator to be
+used for coarsening.
+         * \param phys_bdry_extrap_type string giving the type of extrapolation to
+use for physical boundary ghost cells.
+         * \param consistent_type_2_bdry bool giving whether a type-2 boundaries sh
+ould use consistent interpolation
+         * \param robin_bc_coef vector of pointers to RobinBcCoefStrategy<NDIM> giving the physical boundary conditions
+to be used for filling ghost cells.
+         * \param fill_pattern pointer to a VariableFillPattern<NDIM> indicating th
+e type of region to fill ghost cell values.
+
          */
         inline InterpolationTransactionComponent(
             int data_idx,
@@ -159,6 +205,23 @@ public:
 
         /*!
          * \brief Alternate constructor.
+         *
+         * \param dst_data_idx patch data index giving the destination patch data.
+         * \param src_data_idx patch data index giving the source patch data.
+         * \param refine_op_name string giving the type of refine operator to be used for refinement.
+         * \param use_cf_bdry_interpolation bool giving whether coarse-fine interfa
+ce interpolation should be done.
+         * \param coarsen_op_name string giving the type of coarsen operator to be
+used for coarsening.
+         * \param phys_bdry_extrap_type string giving the type of extrapolation to
+use for physical boundary ghost cells.
+         * \param consistent_type_2_bdry bool giving whether a type-2 boundaries sh
+ould use consistent interpolation
+         * \param robin_bc_coef pointer to RobinBcCoefStrategy<NDIM> giving the phy
+sical boundary conditions to be used for filling ghost cells.
+         * \param fill_pattern pointer to a VariableFillPattern<NDIM> indicating th
+e type of region to fill ghost cell values.
+
          */
         inline InterpolationTransactionComponent(
             int dst_data_idx,
@@ -187,6 +250,23 @@ public:
 
         /*!
          * \brief Alternate constructor.
+         *
+         * \param dst_data_idx patch data index giving the destination patch data.
+         * \param src_data_idx patch data index giving the source patch data.
+         * \param refine_op_name string giving the type of refine operator to be used for refinement.
+         * \param use_cf_bdry_interpolation bool giving whether coarse-fine interfa
+ce interpolation should be done.
+         * \param coarsen_op_name string giving the type of coarsen operator to be
+used for coarsening.
+         * \param phys_bdry_extrap_type string giving the type of extrapolation to
+use for physical boundary ghost cells.
+         * \param consistent_type_2_bdry bool giving whether a type-2 boundaries sh
+ould use consistent interpolation
+         * \param robin_bc_coef vector of pointers to RobinBcCoefStrategy<NDIM> giving the physical boundary conditions
+to be used for filling ghost cells.
+         * \param fill_pattern pointer to a VariableFillPattern<NDIM> indicating th
+e type of region to fill ghost cell values.
+
          */
         inline InterpolationTransactionComponent(
             int dst_data_idx,
@@ -295,6 +375,8 @@ public:
      * \brief Setup the hierarchy ghost cell interpolation operator to perform
      * the specified interpolation transactions on the specified patch
      * hierarchy.
+     *
+     * \note This function creates a vector and calls the next function.
      */
     void initializeOperatorState(InterpolationTransactionComponent transaction_comp,
                                  SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy<NDIM> > hierarchy,
