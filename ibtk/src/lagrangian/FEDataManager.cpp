@@ -2069,6 +2069,10 @@ FEDataManager::buildL2ProjectionSolver(const std::string& system_name)
 
         // Build solver components.
         std::unique_ptr<LinearSolver<double> > solver = LinearSolver<double>::build(comm);
+        PetscLinearSolver<double> * petsc_solver = dynamic_cast<PetscLinearSolver<double> *>(solver.get());
+        TBOX_ASSERT(petsc_solver != nullptr);
+        // TODO: explicitly use conjugate gradient solver and a block jacobi preconditioner
+
         solver->init();
 
         std::unique_ptr<SparseMatrix<double> > M_mat = SparseMatrix<double>::build(comm);
