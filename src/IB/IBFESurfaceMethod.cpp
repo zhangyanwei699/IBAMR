@@ -1954,8 +1954,8 @@ IBFESurfaceMethod::commonConstructor(const std::string& object_name,
             mesh_has_first_order_elems = mesh_has_first_order_elems || elem->default_order() == FIRST;
             mesh_has_second_order_elems = mesh_has_second_order_elems || elem->default_order() == SECOND;
         }
-        mesh_has_first_order_elems = IBTK_MPI::maxReduction(mesh_has_first_order_elems);
-        mesh_has_second_order_elems = IBTK_MPI::maxReduction(mesh_has_second_order_elems);
+        mesh_has_first_order_elems = IBTK_MPI::maxReduction((int) mesh_has_first_order_elems);
+        mesh_has_second_order_elems = IBTK_MPI::maxReduction((int) mesh_has_second_order_elems);
         if ((mesh_has_first_order_elems && mesh_has_second_order_elems) ||
             (!mesh_has_first_order_elems && !mesh_has_second_order_elems))
         {

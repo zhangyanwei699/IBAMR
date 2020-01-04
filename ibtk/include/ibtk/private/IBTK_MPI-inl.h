@@ -11,8 +11,8 @@
 //
 // ---------------------------------------------------------------------
 
-#ifndef included_IBTK_MPI
-#define included_IBTK_MPI
+#ifndef included_IBTK_MPI_inc
+#define included_IBTK_MPI_inc
 
 #include "ibtk/IBTK_MPI.h"
 
@@ -84,7 +84,10 @@ template <typename T>
 inline T
 IBTK_MPI::bcast(const T x, const int root, IBTK_MPI::comm communicator)
 {
-    bcast(&x, 1, root, communicator);
+    int size = 1;
+    T temp_copy = x;
+    bcast(&temp_copy, size, root, communicator);
+    return x;
 }
 
 template <typename T>

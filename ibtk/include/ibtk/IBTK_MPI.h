@@ -69,6 +69,12 @@ mpi_type_id(const char)
     return MPI_CHAR;
 }
 
+inline MPI_Datatype
+mpi_type_id(const unsigned int)
+{
+    return MPI_UNSIGNED;
+}
+
 template <typename T>
 inline MPI_Datatype
 mpi_type_id(const T&)

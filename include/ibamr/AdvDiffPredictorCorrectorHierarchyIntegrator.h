@@ -25,6 +25,7 @@
 #include "MultiblockDataTranslator.h"
 #include "tbox/Database.h"
 #include "tbox/Pointer.h"
+#include "ibtk/IBTK_MPI.h"
 
 #include <string>
 
