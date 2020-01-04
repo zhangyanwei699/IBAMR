@@ -30,6 +30,7 @@
 #include <ibtk/AppInitializer.h>
 #include <ibtk/CartCellRobinPhysBdryOp.h>
 #include <ibtk/CartExtrapPhysBdryOp.h>
+#include <ibtk/IBTK_MPI.h>
 
 #include <LocationIndexRobinBcCoefs.h>
 

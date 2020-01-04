@@ -31,6 +31,7 @@
 #include <ibtk/CartCellRobinPhysBdryOp.h>
 #include <ibtk/CartExtrapPhysBdryOp.h>
 #include <ibtk/CartSideRobinPhysBdryOp.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/PhysicalBoundaryUtilities.h>
 #include <ibtk/muParserRobinBcCoefs.h>
 

@@ -19,6 +19,7 @@
 
 // Headers for application-specific algorithm/data structure objects
 #include <ibtk/AppInitializer.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/LData.h>
 
 // Set up application namespace declarations

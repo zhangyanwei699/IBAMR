@@ -27,6 +27,7 @@
 // Headers for application-specific algorithm/data structure objects
 #include <ibtk/AppInitializer.h>
 #include <ibtk/FEMapCache.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/JacobianCalculator.h>
 #include <ibtk/QuadratureCache.h>
 #include <ibtk/libmesh_utilities.h>

@@ -35,6 +35,7 @@
 #include <ibtk/AppInitializer.h>
 #include <ibtk/HierarchyGhostCellInterpolation.h>
 #include <ibtk/HierarchyMathOps.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/PETScMatUtilities.h>
 #include <ibtk/PETScVecUtilities.h>
 #include <ibtk/muParserCartGridFunction.h>

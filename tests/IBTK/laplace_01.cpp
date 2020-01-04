@@ -29,6 +29,7 @@
 // Headers for application-specific algorithm/data structure objects
 #include <ibtk/AppInitializer.h>
 #include <ibtk/CCLaplaceOperator.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/muParserCartGridFunction.h>
 
 // Set up application namespace declarations

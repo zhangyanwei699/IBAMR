@@ -31,6 +31,7 @@
 #include <ibtk/AppInitializer.h>
 #include <ibtk/HierarchyGhostCellInterpolation.h>
 #include <ibtk/HierarchyMathOps.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/ibtk_enums.h>
 #include <ibtk/muParserCartGridFunction.h>
 

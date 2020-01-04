@@ -33,6 +33,7 @@
 #include <ibtk/AppInitializer.h>
 #include <ibtk/muParserCartGridFunction.h>
 #include <ibtk/muParserRobinBcCoefs.h>
+#include <ibtk/IBTK_MPI.h>
 
 // Set up application namespace declarations
 #include <ibamr/app_namespaces.h>

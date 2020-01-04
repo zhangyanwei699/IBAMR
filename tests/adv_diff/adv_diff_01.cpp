@@ -31,6 +31,7 @@
 #include <ibamr/AdvDiffSemiImplicitHierarchyIntegrator.h>
 
 #include <ibtk/AppInitializer.h>
+#include <ibtk/IBTK_MPI.h>
 
 #include <LocationIndexRobinBcCoefs.h>
 

@@ -15,6 +15,7 @@
 #include <ibtk/libmesh_utilities.h>
 
 #include <tbox/SAMRAIManager.h>
+#include <tbox/SAMRAI_MPI.h>
 
 #include <libmesh/enum_order.h>
 #include <libmesh/enum_quadrature_type.h>

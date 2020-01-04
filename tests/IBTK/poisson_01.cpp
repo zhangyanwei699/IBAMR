@@ -30,6 +30,7 @@
 #include <ibtk/AppInitializer.h>
 #include <ibtk/CCLaplaceOperator.h>
 #include <ibtk/CCPoissonSolverManager.h>
+#include <ibtk/IBTK_MPI.h>
 #include <ibtk/muParserCartGridFunction.h>
 
 // Set up application namespace declarations
