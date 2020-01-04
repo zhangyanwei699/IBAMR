@@ -313,4 +313,8 @@ private:
 
 } // namespace IBTK
 
+/////////////////////////////// INLINE ///////////////////////////////////////
+
+#include "ibtk/private/IBTK_MPI-inl.h" // IWYU pragma: keep
+
 #endif
