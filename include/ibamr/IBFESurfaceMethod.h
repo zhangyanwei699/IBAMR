@@ -18,7 +18,6 @@
 
 #include "ibamr/IBFEDirectForcingKinematics.h"
 #include "ibamr/IBImplicitStrategy.h"
-#include "ibamr/IBStrategy.h"
 #include "ibamr/ibamr_enums.h"
 
 #include "ibtk/FEDataManager.h"
@@ -100,7 +99,7 @@ namespace IBAMR
  * of 1.0e-10 is recommended for both the Krylov solver of
  * the $L^2$ projection steps as well as the subdomain Stokes solve of the NS solver.
  */
-class IBFESurfaceMethod : public IBStrategy
+class IBFESurfaceMethod : public IBImplicitStrategy
 {
 public:
     static const std::string COORDS_SYSTEM_NAME;
@@ -359,6 +358,12 @@ public:
      * method.
      */
     void forwardEulerStep(double current_time, double new_time) override;
+
+    /*!
+     * Advance the positions of the Lagrangian structure using the backward Euler
+     * method.
+     */
+    void backwardEulerStep(double current_time, double new_time) override;
 
     /*!
      * Advance the positions of the Lagrangian structure using the (explicit)
@@ -1028,6 +1033,11 @@ private:
      * members.
      */
     void getFromRestart();
+
+    /**
+     * Cached data for implicit solver.
+     */
+    std::vector<std::unique_ptr<libMesh::PetscVector<double> > > d_implicit_X_vecs, d_implicit_R_vecs;
 
     /*!
      * Do the actual work in reinitializeFEData and initializeFEData. if @p

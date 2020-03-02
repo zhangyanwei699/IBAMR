@@ -1544,11 +1544,6 @@ IBFESurfaceMethod::backwardEulerStep(const double current_time, const double new
         ierr = VecAXPBYPCZ(
             d_X_half_vecs[part]->vec(), 0.5, 0.5, 0.0, d_X_current_vecs[part]->vec(), d_X_new_vecs[part]->vec());
         IBTK_CHKERRQ(ierr);
-        //~ if (d_use_direct_forcing)
-        //~ {
-        //~ d_direct_forcing_kinematics_data[part]->forwardEulerStep(
-        //~ current_time, new_time, *d_X_current_vecs[part], *d_X_half_vecs[part], *d_X_new_vecs[part]);
-        //~ }
     }
     return;
 } // backwardEulerStep
