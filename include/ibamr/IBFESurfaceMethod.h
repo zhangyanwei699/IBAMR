@@ -17,6 +17,7 @@
 /////////////////////////////// INCLUDES /////////////////////////////////////
 
 #include "ibamr/IBFEDirectForcingKinematics.h"
+#include "ibamr/IBImplicitStrategy.h"
 #include "ibamr/IBStrategy.h"
 #include "ibamr/ibamr_enums.h"
 
@@ -386,6 +387,45 @@ public:
                 IBTK::RobinPhysBdryPatchStrategy* f_phys_bdry_op,
                 const std::vector<SAMRAI::tbox::Pointer<SAMRAI::xfer::RefineSchedule<NDIM> > >& f_prolongation_scheds,
                 double data_time) override;
+    /*!
+     * Create solution data.
+     */
+    void createSolutionVec(Vec* X_vec) override;
+
+    /*!
+     * Create solution and rhs data.
+     */
+    void createSolverVecs(Vec* X_vec, Vec* F_vec) override;
+
+    /*!
+     * Setup solution and rhs data.
+     */
+    void setupSolverVecs(Vec& X_vec, Vec& F_vec) override;
+
+    /*!
+     * Set the value of the updated position vector.
+     */
+    void setUpdatedPosition(Vec& X_new_vec) override;
+
+    /*!
+     * Get the value of the updated position vector.
+     */
+    void getUpdatedPosition(Vec& X_new_vec) override;
+
+    /*!
+     * Compute the nonlinear residual for backward Euler time stepping.
+     */
+    void computeResidualBackwardEuler(Vec& R_vec) override;
+
+    /*!
+     * Compute the nonlinear residual for midpoint rule time stepping.
+     */
+    void computeResidualMidpointRule(Vec& R_vec) override;
+
+    /*!
+     * Compute the nonlinear residual for trapezoidal rule time stepping.
+     */
+    void computeResidualTrapezoidalRule(Vec& R_vec) override;
 
     /*!
      * Get the default interpolation spec object used by the class.
