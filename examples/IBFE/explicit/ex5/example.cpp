@@ -670,7 +670,7 @@ postprocess_data(Pointer<Database> input_db,
     const DofMap& dof_map = x_system->get_dof_map();
     std::vector<std::vector<unsigned int> > dof_indices(NDIM);
 
-    NumericVector<double>& X_vec = x_system->get_vector("INITIAL_COORDINATES");
+    NumericVector<double>& X_vec = x_system->get_vector("REFERENCE_COORDINATES");
 
     std::vector<std::vector<unsigned int> > WSS_o_dof_indices(NDIM);
     System* TAU_system;

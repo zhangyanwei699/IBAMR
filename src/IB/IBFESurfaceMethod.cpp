@@ -1638,7 +1638,7 @@ IBFESurfaceMethod::computeLagrangianForce(const double data_time)
             TBOX_ASSERT(X_dof_map.variable_type(d) == X_fe_type);
         }
         TBOX_ASSERT(X_fe_type == F_fe_type);
-        NumericVector<double>& X0_vec = X_system.get_vector("INITIAL_COORDINATES");
+        NumericVector<double>& X0_vec = X_system.get_vector("REFERENCE_COORDINATES");
         System* P_jump_system;
         const DofMap* P_jump_dof_map = NULL;
         FEDataManager::SystemDofMapCache* P_jump_dof_map_cache = NULL;
@@ -2135,7 +2135,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
             {
                 X_system.add_variable("X_" + std::to_string(d), d_fe_order[part], d_fe_family[part]);
             }
-            X_system.add_vector("INITIAL_COORDINATES", /*projections*/ true, GHOSTED);
+            X_system.add_vector("REFERENCE_COORDINATES", /*projections*/ true, GHOSTED);
 
             auto& dX_system = equation_systems.add_system<ExplicitSystem>(COORD_MAPPING_SYSTEM_NAME);
             for (unsigned int d = 0; d < NDIM; ++d)
@@ -2345,7 +2345,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                 };
 
                 const std::array<std::string, 1> system_names{ { COORDS_SYSTEM_NAME } };
-                const std::array<std::string, 1> vector_names{ { "INITIAL_COORDINATES" } };
+                const std::array<std::string, 1> vector_names{ { "REFERENCE_COORDINATES" } };
                 for (const std::string& system_name : system_names)
                 {
                     auto& system = equation_systems.get_system<ExplicitSystem>(system_name);
@@ -3538,18 +3538,18 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
     double* X_local_soln;
     VecGetArray(X_local_vec, &X_local_soln);
     std::unique_ptr<NumericVector<double> > X0_vec = X_petsc_vec->clone();
-    copy_and_synch(X_system.get_vector("INITIAL_COORDINATES"), *X0_vec);
+    copy_and_synch(X_system.get_vector("REFERENCE_COORDINATES"), *X0_vec);
     X0_vec->close();
 
     const std::vector<std::vector<Elem*> >& active_patch_element_map =
         d_primary_fe_data_managers[part]->getActivePatchElementMap();
 
-    boost::multi_array<double, 2> x_node, X_node, WSS_in_node, WSS_out_node, n_qp_node;
+    boost::multi_array<double, 2> X_node, x_node, WSS_in_node, WSS_out_node, n_qp_node;
     boost::multi_array<double, 1> P_in_node, P_out_node;
-    std::vector<double> x_in_qp, x_out_qp, x_qp;
+    std::vector<double> X_in_qp, X_out_qp, X_qp;
     std::vector<double> P_in_qp, P_out_qp, Normal_qp, WSS_in_qp, WSS_out_qp, TAU_in_qp, TAU_out_qp;
     std::array<VectorValue<double>, 2> dX_dxi, dx_dxi;
-    VectorValue<double> n, N, x, X;
+    VectorValue<double> N, X;
 
     Pointer<PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(d_primary_fe_data_managers[part]->getLevelNumber());
     const Pointer<CartesianGridGeometry<NDIM> > grid_geom = level->getGridGeometry();
@@ -3589,7 +3589,7 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
         if (!n_qp_patch) continue;
         P_in_qp.resize(n_qp_patch);
         P_out_qp.resize(n_qp_patch);
-        x_qp.resize(NDIM * n_qp_patch);
+        X_qp.resize(NDIM * n_qp_patch);
         WSS_in_qp.resize(NDIM * n_qp_patch);
         WSS_out_qp.resize(NDIM * n_qp_patch);
 
@@ -3597,7 +3597,7 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
         TAU_out_qp.resize(NDIM * n_qp_patch);
         Normal_qp.resize(NDIM * n_qp_patch);
         std::fill(Normal_qp.begin(), Normal_qp.end(), 0.0);
-        std::fill(x_qp.begin(), x_qp.end(), 0.0);
+        std::fill(X_qp.begin(), X_qp.end(), 0.0);
         std::fill(WSS_in_qp.begin(), WSS_in_qp.end(), 0.0);
         std::fill(WSS_out_qp.begin(), WSS_out_qp.end(), 0.0);
         std::fill(P_in_qp.begin(), P_in_qp.end(), 0.0);
@@ -3637,8 +3637,8 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
             const unsigned int n_qp = qrule->n_points();
 
             // Zero out the values of X, du, and dv prior to accumulation.
-            double* x_begin = &x_qp[NDIM * qp_offset];
-            std::fill(x_begin, x_begin + NDIM * n_qp, 0.0);
+            double* X_begin = &X_qp[NDIM * qp_offset];
+            std::fill(X_begin, X_begin + NDIM * n_qp, 0.0);
 
             double* Normal_begin = &Normal_qp[NDIM * qp_offset];
             std::fill(Normal_begin, Normal_begin + NDIM * n_qp, 0.0);
@@ -3664,11 +3664,11 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
             for (unsigned int qp = 0; qp < n_qp; ++qp)
             {
                 interpolate(X, qp, X_node, phi_X);
-                interpolate(x, qp, x_node, phi_X);
+                //  interpolate(x, qp, x_node, phi_X);
                 for (unsigned int k = 0; k < NDIM - 1; ++k)
                 {
                     interpolate(dX_dxi[k], qp, X_node, *dphi_dxi_X[k]);
-                    interpolate(dx_dxi[k], qp, x_node, *dphi_dxi_X[k]);
+                    //    interpolate(dx_dxi[k], qp, x_node, *dphi_dxi_X[k]);
                 }
                 if (NDIM == 2)
                 {
@@ -3678,30 +3678,30 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
                 // Construct unit vectors in the reference and current
                 // configurations.
                 N = dX_dxi[0].cross(dX_dxi[1]);
-                const double dA = N.norm();
+                //~ const double dA = N.norm();
                 N = N.unit();
-                n = dx_dxi[0].cross(dx_dxi[1]);
-                const double da = n.norm();
-                n = n.unit();
+                //~ n = dx_dxi[0].cross(dx_dxi[1]);
+                //~ const double da = n.norm();
+                //~ n = n.unit();
 
                 for (unsigned int i = 0; i < NDIM; ++i)
                 {
                     for (unsigned int k = 0; k < n_node; ++k)
                     {
                         const double& p_X = phi_X[k][qp];
-                        x_qp[NDIM * (qp_offset + qp) + i] += x_node[k][i] * p_X;
+                        X_qp[NDIM * (qp_offset + qp) + i] += X_node[k][i] * p_X;
                         const double& p_P = phi_P[k][qp];
-                        WSS_in_qp[NDIM * (qp_offset + qp) + i] += (da / dA) * WSS_in_node[k][i] * p_P;
-                        WSS_out_qp[NDIM * (qp_offset + qp) + i] += (da / dA) * WSS_out_node[k][i] * p_P;
+                        WSS_in_qp[NDIM * (qp_offset + qp) + i] += WSS_in_node[k][i] * p_P;
+                        WSS_out_qp[NDIM * (qp_offset + qp) + i] += WSS_out_node[k][i] * p_P;
                     }
-                    Normal_qp[NDIM * (qp_offset + qp) + i] = n(i);
+                    Normal_qp[NDIM * (qp_offset + qp) + i] = N(i);
                 }
 
                 for (unsigned int k = 0; k < n_node; ++k)
                 {
                     const double& p_P = phi_P[k][qp];
-                    P_in_qp[qp_offset + qp] += (da / dA) * P_in_node[k] * p_P;
-                    P_out_qp[qp_offset + qp] += (da / dA) * P_out_node[k] * p_P;
+                    P_in_qp[qp_offset + qp] += P_in_node[k] * p_P;
+                    P_out_qp[qp_offset + qp] += P_out_node[k] * p_P;
                 }
             }
             qp_offset += n_qp;
@@ -3716,7 +3716,7 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
         local_indices.reserve(upper_bound);
         for (unsigned int k = 0; k < n_qp_patch; ++k)
         {
-            const double* const XX = &x_qp[NDIM * k];
+            const double* const XX = &X_qp[NDIM * k];
             const Index<NDIM> i = IndexUtilities::getCellIndex(XX, patch_geom, interp_box);
             if (interp_box.contains(i)) local_indices.push_back(k);
         }
@@ -3758,6 +3758,7 @@ IBFESurfaceMethod::computeFluidTraction(const double data_time, unsigned int par
             }
 
             get_values_for_interpolation(x_node, *X_petsc_vec, X_local_soln, X_dof_indices);
+            get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
             const bool qrule_changed =
                 FEDataManager::updateInterpQuadratureRule(qrule, d_default_interp_spec, elem, x_node, patch_dx_min);
             if (qrule_changed)
@@ -4534,7 +4535,7 @@ IBFESurfaceMethod::initializeCoordinates(const unsigned int part)
                    *X_system.current_local_solution,
                    /*close_v_in*/ false);
     copy_and_synch(X_coords,
-                   X_system.get_vector("INITIAL_COORDINATES"),
+                   X_system.get_vector("REFERENCE_COORDINATES"),
                    /*close_v_in*/ false);
     return;
 } // initializeCoordinates
