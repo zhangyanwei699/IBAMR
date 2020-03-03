@@ -825,9 +825,6 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
 
     std::vector<Pointer<RefineSchedule<NDIM> > > no_fill(u_ghost_fill_scheds.size(), nullptr);
 
-    batch_vec_copy(X_vecs, d_X_IB_ghost_vecs);
-    batch_vec_ghost_update(d_X_IB_ghost_vecs, INSERT_VALUES, SCATTER_FORWARD);
-
     for (unsigned int part = 0; part < d_num_parts; ++part)
     {
         const std::array<PetscVector<double>*, NDIM>& DU_jump_ghost_vec = d_DU_jump_IB_ghost_vecs[part];
@@ -860,7 +857,14 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
 
         auto X_petsc_vec = dynamic_cast<PetscVector<double>*>(d_X_IB_ghost_vecs[part]);
         TBOX_ASSERT(X_petsc_vec != nullptr);
-        const double* const X_local_soln = X_petsc_vec->get_array_read();
+        Vec X_global_vec = X_petsc_vec->vec();
+        Vec X_local_vec;
+        VecGhostGetLocalForm(X_global_vec, &X_local_vec);
+        double* X_local_soln;
+        VecGetArray(X_local_vec, &X_local_soln);
+        std::unique_ptr<NumericVector<double> > X0_vec = X_petsc_vec->clone();
+        copy_and_synch(X_system.get_vector("REFERENCE_COORDINATES"), *X0_vec);
+        X0_vec->close();
 
         std::array<ExplicitSystem*, NDIM> DU_jump_system;
         std::array<const DofMap*, NDIM> DU_jump_dof_map;
@@ -939,12 +943,12 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
             (d_use_velocity_jump_conditions ? WSS_in_vec->zero_clone() : UniquePtr<NumericVector<double> >());
         DenseVector<double> WSS_in_rhs_e[NDIM];
 
-        boost::multi_array<double, 2> x_node;
+        boost::multi_array<double, 2> x_node, X_node;
         std::array<boost::multi_array<double, 2>, NDIM> DU_jump_node;
-        std::vector<double> U_qp, U_in_qp, U_out_qp, WSS_in_qp, WSS_out_qp, n_qp, x_qp, x_in_qp, x_out_qp;
+        std::vector<double> U_qp, U_in_qp, U_out_qp, WSS_in_qp, WSS_out_qp, N_qp, X_qp, X_in_qp, X_out_qp;
         std::array<std::vector<double>, NDIM> DU_jump_qp;
-        VectorValue<double> U, WSS_in, WSS_out, U_n, U_t, n;
-        std::array<VectorValue<double>, 2> dx_dxi;
+        VectorValue<double> U, WSS_in, WSS_out, U_n, U_t, n, N;
+        std::array<VectorValue<double>, 2> dX_dxi;
 
         Pointer<PatchLevel<NDIM> > level =
             d_hierarchy->getPatchLevel(d_primary_fe_data_managers[part]->getLevelNumber());
@@ -1001,10 +1005,10 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
             WSS_out_qp.resize(NDIM * n_qpoints_patch);
             U_in_qp.resize(NDIM * n_qpoints_patch);
             U_out_qp.resize(NDIM * n_qpoints_patch);
-            x_qp.resize(NDIM * n_qpoints_patch);
-            x_in_qp.resize(NDIM * n_qpoints_patch);
-            x_out_qp.resize(NDIM * n_qpoints_patch);
-            n_qp.resize(NDIM * n_qpoints_patch);
+            X_qp.resize(NDIM * n_qpoints_patch);
+            X_in_qp.resize(NDIM * n_qpoints_patch);
+            X_out_qp.resize(NDIM * n_qpoints_patch);
+            N_qp.resize(NDIM * n_qpoints_patch);
             for (unsigned int axis = 0; axis < NDIM; ++axis)
             {
                 DU_jump_qp[axis].resize(NDIM * n_qpoints_patch);
@@ -1026,6 +1030,7 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                     X_dof_map_cache.dof_indices(elem, X_dof_indices[d], d);
                 }
                 get_values_for_interpolation(x_node, *X_petsc_vec, X_local_soln, X_dof_indices);
+                get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
                 if (d_use_velocity_jump_conditions)
                 {
                     for (unsigned int axis = 0; axis < NDIM; ++axis)
@@ -1051,17 +1056,17 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                 const unsigned int n_qpoints = qrule->n_points();
 
                 // Zero out the values prior to accumulation.
-                double* x_begin = &x_qp[NDIM * qp_offset];
-                std::fill(x_begin, x_begin + NDIM * n_qpoints, 0.0);
+                double* X_begin = &X_qp[NDIM * qp_offset];
+                std::fill(X_begin, X_begin + NDIM * n_qpoints, 0.0);
 
-                double* x_in_begin = &x_in_qp[NDIM * qp_offset];
-                std::fill(x_in_begin, x_in_begin + NDIM * n_qpoints, 0.0);
+                double* X_in_begin = &X_in_qp[NDIM * qp_offset];
+                std::fill(X_in_begin, X_in_begin + NDIM * n_qpoints, 0.0);
 
-                double* x_out_begin = &x_out_qp[NDIM * qp_offset];
-                std::fill(x_out_begin, x_out_begin + NDIM * n_qpoints, 0.0);
+                double* X_out_begin = &X_out_qp[NDIM * qp_offset];
+                std::fill(X_out_begin, X_out_begin + NDIM * n_qpoints, 0.0);
 
-                double* n_begin = &n_qp[NDIM * qp_offset];
-                std::fill(n_begin, n_begin + NDIM * n_qpoints, 0.0);
+                double* N_begin = &N_qp[NDIM * qp_offset];
+                std::fill(N_begin, N_begin + NDIM * n_qpoints, 0.0);
 
                 for (unsigned int axis = 0; axis < NDIM; ++axis)
                 {
@@ -1078,7 +1083,7 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                         const double& p = phi_X[k][qp];
                         for (unsigned int d = 0; d < NDIM; ++d)
                         {
-                            x_qp[NDIM * (qp_offset + qp) + d] += x_node[k][d] * p;
+                            X_qp[NDIM * (qp_offset + qp) + d] += X_node[k][d] * p;
                         }
                         if (d_use_velocity_jump_conditions)
                         {
@@ -1097,18 +1102,18 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                 {
                     for (unsigned int l = 0; l < NDIM - 1; ++l)
                     {
-                        interpolate(dx_dxi[l], qp, x_node, *dphi_dxi[l]);
+                        interpolate(dX_dxi[l], qp, X_node, *dphi_dxi[l]);
                     }
                     if (NDIM == 2)
                     {
-                        dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                        dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                     }
-                    n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                    N = (dX_dxi[0].cross(dX_dxi[1])).unit();
                     for (unsigned int d = 0; d < NDIM; ++d)
                     {
-                        n_qp[NDIM * (qp_offset + qp) + d] = n(d);
-                        x_in_qp[NDIM * (qp_offset + qp) + d] = x_qp[NDIM * (qp_offset + qp) + d] - n(d) * dh;
-                        x_out_qp[NDIM * (qp_offset + qp) + d] = x_qp[NDIM * (qp_offset + qp) + d] + n(d) * dh;
+                        N_qp[NDIM * (qp_offset + qp) + d] = N(d);
+                        X_in_qp[NDIM * (qp_offset + qp) + d] = X_qp[NDIM * (qp_offset + qp) + d] - N(d) * dh;
+                        X_out_qp[NDIM * (qp_offset + qp) + d] = X_qp[NDIM * (qp_offset + qp) + d] + N(d) * dh;
                     }
                 }
                 qp_offset += n_qpoints;
@@ -1127,21 +1132,21 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
             if (u_cc_data)
             {
                 LEInteractor::interpolate(
-                    U_qp, NDIM, x_qp, NDIM, u_cc_data, patch, interp_box, d_default_interp_spec.kernel_fcn);
+                    U_qp, NDIM, X_qp, NDIM, u_cc_data, patch, interp_box, d_default_interp_spec.kernel_fcn);
             }
             Pointer<SideData<NDIM, double> > u_sc_data = u_data;
             if (u_sc_data && !d_use_velocity_jump_conditions)
             {
                 LEInteractor::interpolate(
-                    U_qp, NDIM, x_qp, NDIM, u_sc_data, patch, interp_box, d_default_interp_spec.kernel_fcn);
+                    U_qp, NDIM, X_qp, NDIM, u_sc_data, patch, interp_box, d_default_interp_spec.kernel_fcn);
             }
             else if (u_sc_data && d_use_velocity_jump_conditions)
             {
                 LEInteractor::interpolate(
-                    U_in_qp, NDIM, x_in_qp, NDIM, u_sc_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
+                    U_in_qp, NDIM, X_in_qp, NDIM, u_sc_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
 
                 LEInteractor::interpolate(
-                    U_out_qp, NDIM, x_out_qp, NDIM, u_sc_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
+                    U_out_qp, NDIM, X_out_qp, NDIM, u_sc_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
 
                 const IntVector<NDIM>& u_gcw = u_sc_data->getGhostCellWidth();
                 const int u_depth = u_sc_data->getDepth();
@@ -1151,17 +1156,17 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                 std::vector<int> local_indices;
                 for (unsigned int k = 0; k < n_qpoints_patch; ++k)
                 {
-                    const double* const x = &x_qp[NDIM * k];
-                    const Index<NDIM> i = IndexUtilities::getCellIndex(x, patch_geom, patch_box);
+                    const double* const X = &X_qp[NDIM * k];
+                    const Index<NDIM> i = IndexUtilities::getCellIndex(X, patch_geom, patch_box);
                     if (interp_box.contains(i)) local_indices.push_back(k);
 
-                    const double* const x_in = &x_in_qp[NDIM * k];
+                    const double* const X_in = &X_in_qp[NDIM * k];
                     const Index<NDIM> in = IndexUtilities::getCellIndex(
-                        x_in, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
+                        X_in, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
 
-                    const double* const x_out = &x_out_qp[NDIM * k];
+                    const double* const X_out = &X_out_qp[NDIM * k];
                     const Index<NDIM> out = IndexUtilities::getCellIndex(
-                        x_out, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
+                        X_out, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
 
                     // Some kind of assertation can be applied here using the indices of the cells away from the
                     // interfce
@@ -1210,7 +1215,7 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                         const double* const dx = patch_dx;
                         for (unsigned int d = 0; d < NDIM; ++d)
                         {
-                            x[d] = x_qp[s * NDIM + d];
+                            x[d] = X_qp[s * NDIM + d];
                             ic_center[d] = ilower[d] + boost::math::iround((x[d] - x_lower_axis[d]) / dx[d] - 0.5);
                             x_cell[d] = x_lower_axis[d] + ((ic_center[d] - ilower[d]) + 0.5) * dx[d];
                             if (x[d] <= x_cell[d])
@@ -1254,7 +1259,7 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                         VectorValue<double> norm_vec, du_jump, coeff_vec, wrc;
                         // Loop over indices to calculate the interp coefficients (Lower=0, Upper=1)
 
-                        for (int d = 0; d < NDIM; ++d) norm_vec(d) = n_qp[s * NDIM + d];
+                        for (int d = 0; d < NDIM; ++d) norm_vec(d) = N_qp[s * NDIM + d];
 
                         Box<NDIM> stencil_box(ic_lower, ic_upper);
 
@@ -1306,8 +1311,8 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
 
                             U_axis[s] +=
                                 w[0][ic[0] - ic_lower[0]] * w[1][ic[1] - ic_lower[1]] * u_sc_data_array[ic[0]][ic[1]];
-                            const double nproj = n_qp[s * NDIM + 0] * wr[0][ic_upper[0] - ic[0]] +
-                                                 n_qp[s * NDIM + 1] * wr[1][ic_upper[1] - ic[1]];
+                            const double nproj = N_qp[s * NDIM + 0] * wr[0][ic_upper[0] - ic[0]] +
+                                                 N_qp[s * NDIM + 1] * wr[1][ic_upper[1] - ic[1]];
                             if (d_use_velocity_jump_conditions)
                             {
                                 const double CC = (nproj > 0.0) ? Ujump[ic[0]][ic[1]][axis] : 0.0;
@@ -1318,9 +1323,9 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
 
                             U_axis[s] += w[0][ic[0] - ic_lower[0]] * w[1][ic[1] - ic_lower[1]] *
                                          w[2][ic[2] - ic_lower[2]] * u_sc_data_array[ic[0]][ic[1]][ic[2]];
-                            const double nproj = n_qp[s * NDIM + 0] * wr[0][ic_upper[0] - ic[0]] +
-                                                 n_qp[s * NDIM + 1] * wr[1][ic_upper[1] - ic[1]] +
-                                                 n_qp[s * NDIM + 2] * wr[2][ic_upper[2] - ic[2]];
+                            const double nproj = N_qp[s * NDIM + 0] * wr[0][ic_upper[0] - ic[0]] +
+                                                 N_qp[s * NDIM + 1] * wr[1][ic_upper[1] - ic[1]] +
+                                                 N_qp[s * NDIM + 2] * wr[2][ic_upper[2] - ic[2]];
                             if (d_use_velocity_jump_conditions)
                             {
                                 const double CC = (nproj > 0.0) ? Ujump[ic[0]][ic[1]][ic[2]][axis] : 0.0;
@@ -1376,6 +1381,7 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                     }
                 }
                 get_values_for_interpolation(x_node, *X_petsc_vec, X_local_soln, X_dof_indices);
+                get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
                 const bool qrule_changed =
                     FEDataManager::updateInterpQuadratureRule(qrule, d_default_interp_spec, elem, x_node, patch_dx_min);
                 if (qrule_changed) fe_X->attach_quadrature_rule(qrule.get());
@@ -1397,13 +1403,13 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
                 {
                     for (unsigned int k = 0; k < NDIM - 1; ++k)
                     {
-                        interpolate(dx_dxi[k], qp, x_node, *dphi_dxi[k]);
+                        interpolate(dX_dxi[k], qp, X_node, *dphi_dxi[k]);
                     }
                     if (NDIM == 2)
                     {
-                        dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                        dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                     }
-                    n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                    N = (dX_dxi[0].cross(dX_dxi[1])).unit();
                     for (unsigned int d = 0; d < NDIM; ++d)
                     {
                         U(d) = U_qp[NDIM * (qp_offset + qp) + d];
@@ -1470,6 +1476,9 @@ IBFESurfaceMethod::interpolateVelocity(const int u_data_idx,
         }
 
         X_petsc_vec->restore_array();
+
+        VecRestoreArray(X_local_vec, &X_local_soln);
+        VecGhostRestoreLocalForm(X_global_vec, &X_local_vec);
     }
 
     if (d_use_ghosted_velocity_rhs)
@@ -3108,7 +3117,7 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
     Vec X_local_vec;
     VecGhostGetLocalForm(X_global_vec, &X_local_vec);
     double* X_local_soln;
-    VecGetArray(X_local_vec, &X_local_soln);
+
     std::unique_ptr<NumericVector<double> > X0_vec = X_petsc_vec->clone();
     copy_and_synch(X_system.get_vector("REFERENCE_COORDINATES"), *X0_vec);
     X0_vec->close();
