@@ -1792,10 +1792,8 @@ IBFESurfaceMethod::computeLagrangianForce(const double data_time)
                 // Construct unit vectors in the reference and current
                 // configurations.
                 N = dX_dxi[0].cross(dX_dxi[1]);
-                const double dA = N.norm();
                 N = N.unit();
                 n = dx_dxi[0].cross(dx_dxi[1]);
-                const double da = n.norm();
                 n = n.unit();
 
                 F.zero();
@@ -1823,7 +1821,7 @@ IBFESurfaceMethod::computeLagrangianForce(const double data_time)
                                                               surface_pressure_grad_var_data,
                                                               data_time,
                                                               d_lag_surface_pressure_fcn_data[part].ctx);
-                    F -= P * n * da / dA;
+                    F -= P * N;
                 }
 
                 if (d_lag_surface_force_fcn_data[part].fcn)
@@ -1848,10 +1846,10 @@ IBFESurfaceMethod::computeLagrangianForce(const double data_time)
                     F += F_s;
                 }
 
-                const double P_j = F * n * dA / da;
+                const double P_j = F * N;
                 for (unsigned int i = 0; i < NDIM; ++i)
                     for (unsigned int k = 0; k < NDIM; ++k)
-                        DU[i][k] = -(dA / da) * (F(i) - F * n * n(i)) * n(k); // [Ux] , [Uy], [Uz]
+                        DU[i][k] = -(F(i) - F * N * N(i)) * N(k); // [Ux] , [Uy], [Uz]
 
                 for (unsigned int d = 0; d < NDIM; ++d) F_integral(d) += F(d) * JxW[qp];
 
@@ -1859,11 +1857,11 @@ IBFESurfaceMethod::computeLagrangianForce(const double data_time)
 
                 if (d_use_pressure_jump_conditions && !d_use_velocity_jump_conditions)
                 {
-                    F -= (F * n) * n;
+                    F -= (F * N) * N;
                 }
                 if (!d_use_pressure_jump_conditions && d_use_velocity_jump_conditions)
                 {
-                    F = (F * n) * n;
+                    F = (F * N) * N;
                 }
                 if (d_use_pressure_jump_conditions && d_use_velocity_jump_conditions)
                 {
@@ -3902,15 +3900,26 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
     std::unique_ptr<FEBase> fe_P_jump = FEBase::build(dim, P_jump_fe_type);
     const std::vector<std::vector<double> >& phi_P_jump = fe_P_jump->get_phi();
 
+    X_ghost_vec.close();
+    PetscVector<double>* X_petsc_vec = static_cast<PetscVector<double>*>(&X_ghost_vec);
+    Vec X_global_vec = X_petsc_vec->vec();
+    Vec X_local_vec;
+    VecGhostGetLocalForm(X_global_vec, &X_local_vec);
+    double* X_local_soln;
+    VecGetArray(X_local_vec, &X_local_soln);
+    std::unique_ptr<NumericVector<double> > X0_vec = X_petsc_vec->clone();
+    copy_and_synch(X_system.get_vector("REFERENCE_COORDINATES"), *X0_vec);
+    X0_vec->close();
+
     // Loop over the patches to impose jump conditions on the Eulerian grid.
     const std::vector<std::vector<Elem*> >& active_patch_element_map =
         d_primary_fe_data_managers[part]->getActivePatchElementMap();
     const int level_num = d_primary_fe_data_managers[part]->getLevelNumber();
     boost::multi_array<double, 1> P_jump_node;
-    boost::multi_array<double, 2> x_node;
+    boost::multi_array<double, 2> x_node, X_node;
     std::array<boost::multi_array<double, 2>, NDIM> DU_jump_node;
-    std::array<VectorValue<double>, 2> dx_dxi;
-    VectorValue<double> n, jn;
+    std::array<VectorValue<double>, 2> dX_dxi;
+    VectorValue<double> N, jn;
     std::vector<libMesh::Point> X_node_cache, x_node_cache;
     IBTK::Point x_min, x_max;
     Pointer<PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(level_num);
@@ -3965,6 +3974,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
             Elem* const elem = patch_elems[e_idx];
             const auto& X_dof_indices = X_dof_map_cache.dof_indices(elem);
             get_values_for_interpolation(x_node, X_ghost_vec, X_dof_indices);
+            get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
             if (d_use_pressure_jump_conditions)
             {
                 const auto& P_jump_dof_indices = P_jump_dof_map_cache->dof_indices(elem);
@@ -3994,7 +4004,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                 libMesh::Point& x = x_node_cache[k];
                 for (unsigned int d = 0; d < NDIM; ++d)
                 {
-                    x(d) = x_node[k][d];
+                    x(d) = X_node[k][d];
                 }
                 if (d_perturb_fe_mesh_nodes)
                 {
@@ -4116,13 +4126,13 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                 fe_P_jump->reinit(elem, &ref_coords);
                                 for (unsigned int l = 0; l < NDIM - 1; ++l)
                                 {
-                                    interpolate(dx_dxi[l], 0, x_node, *dphi_dxi[l]);
+                                    interpolate(dX_dxi[l], 0, X_node, *dphi_dxi[l]);
                                 }
                                 if (NDIM == 2)
                                 {
-                                    dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                                    dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                                 }
-                                n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                                N = (dX_dxi[0].cross(dX_dxi[1])).unit();
 
                                 // Make sure we haven't already found this
                                 // intersection.
@@ -4144,7 +4154,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
 
                                     checkDoubleCountingIntersection(axis,
                                                                     dx,
-                                                                    n,
+                                                                    N,
                                                                     x,
                                                                     xi,
                                                                     i_s,
@@ -4163,7 +4173,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                     if (side_ghost_boxes[axis].contains(i_s))
                                     {
                                         const double C_p = interpolate(0, P_jump_node, phi_P_jump);
-                                        const double sgn = n(axis) > 0.0 ? 1.0 : n(axis) < 0.0 ? -1.0 : 0.0;
+                                        const double sgn = N(axis) > 0.0 ? 1.0 : N(axis) < 0.0 ? -1.0 : 0.0;
                                         (*f_data)(i_s) += sgn * (C_p / dx[axis]);
                                     }
 
@@ -4171,7 +4181,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                     // imposed jump conditions.
                                     intersection_points[axis][i_s].push_back(x);
                                     intersection_ref_coords[axis][i_s].push_back(xi);
-                                    intersection_normals[axis][i_s].push_back(n);
+                                    intersection_normals[axis][i_s].push_back(N);
                                 }
                             }
                         }
@@ -4200,13 +4210,13 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                 fe_P_jump->reinit(elem, &ref_coords);
                                 for (unsigned int l = 0; l < NDIM - 1; ++l)
                                 {
-                                    interpolate(dx_dxi[l], 0, x_node, *dphi_dxi[l]);
+                                    interpolate(dX_dxi[l], 0, X_node, *dphi_dxi[l]);
                                 }
                                 if (NDIM == 2)
                                 {
-                                    dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                                    dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                                 }
-                                n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                                N = (dX_dxi[0].cross(dX_dxi[1])).unit();
 
                                 bool found_same_intersection_point = false;
 
@@ -4223,7 +4233,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
 
                                     checkDoubleCountingIntersection(axis,
                                                                     dx,
-                                                                    n,
+                                                                    N,
                                                                     xu,
                                                                     xui,
                                                                     i_s_um,
@@ -4263,7 +4273,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                         C_u_up = sdh_up * jn(axis);
                                         C_u_um = sdh_um * jn(axis);
 
-                                        const double sgn = n(axis) > 0.0 ? 1.0 : n(axis) < 0.0 ? -1.0 : 0.0;
+                                        const double sgn = N(axis) > 0.0 ? 1.0 : N(axis) < 0.0 ? -1.0 : 0.0;
                                         // Note that the corrections are applied to opposite sides
                                         (*f_data)(i_s_up) -= sgn * (C_u_um / (dx[axis] * dx[axis]));
                                         (*f_data)(i_s_um) += sgn * (C_u_up / (dx[axis] * dx[axis]));
@@ -4273,7 +4283,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                     // imposed jump conditions.
                                     intersection_u_points[axis][i_s_um].push_back(xu);
                                     intersection_u_ref_coords[axis][i_s_um].push_back(xui);
-                                    intersection_u_normals[axis][i_s_um].push_back(n);
+                                    intersection_u_normals[axis][i_s_um].push_back(N);
                                 }
                             }
                         }
@@ -4373,13 +4383,13 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                     fe_P_jump->reinit(elem, &ref_coords);
                                     for (unsigned int l = 0; l < NDIM - 1; ++l)
                                     {
-                                        interpolate(dx_dxi[l], 0, x_node, *dphi_dxi[l]);
+                                        interpolate(dX_dxi[l], 0, X_node, *dphi_dxi[l]);
                                     }
                                     if (NDIM == 2)
                                     {
-                                        dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                                        dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                                     }
-                                    n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                                    N = (dX_dxi[0].cross(dX_dxi[1])).unit();
 
                                     bool found_same_intersection_point = false;
 
@@ -4396,7 +4406,7 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
 
                                         checkDoubleCountingIntersection(axis,
                                                                         dx,
-                                                                        n,
+                                                                        N,
                                                                         xu,
                                                                         xui,
                                                                         i_s_um,
@@ -4436,14 +4446,14 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
                                             C_u_um = sdh_um * jn(axis);
                                             C_u_up = sdh_up * jn(axis);
 
-                                            const double sgn = n(axis) > 0.0 ? 1.0 : n(axis) < 0.0 ? -1.0 : 0.0;
+                                            const double sgn = N(axis) > 0.0 ? 1.0 : N(axis) < 0.0 ? -1.0 : 0.0;
 
                                             (*f_data)(i_s_um) += sgn * (C_u_up / (dx[axis] * dx[axis]));
                                             (*f_data)(i_s_up) -= sgn * (C_u_um / (dx[axis] * dx[axis]));
                                         }
                                         intersectionSide_u_points[j][axis][i_s_um].push_back(xu);
                                         intersectionSide_u_ref_coords[j][axis][i_s_um].push_back(xui);
-                                        intersectionSide_u_normals[j][axis][i_s_um].push_back(n);
+                                        intersectionSide_u_normals[j][axis][i_s_um].push_back(N);
                                     }
                                 }
                             }
@@ -4459,6 +4469,9 @@ IBFESurfaceMethod::imposeJumpConditions(const int f_data_idx,
             }
         }
     }
+
+    VecRestoreArray(X_local_vec, &X_local_soln);
+    VecGhostRestoreLocalForm(X_global_vec, &X_local_vec);
 
     return;
 } // imposeJumpConditions
