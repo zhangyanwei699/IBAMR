@@ -3094,15 +3094,26 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
     const std::vector<std::vector<Elem*> >& active_patch_element_map =
         d_primary_fe_data_managers[part]->getActivePatchElementMap();
 
-    boost::multi_array<double, 2> x_node;
-    std::vector<double> x_qp, x_in_qp, x_out_qp;
+    boost::multi_array<double, 2> x_node, X_node;
+    std::vector<double> X_qp, X_in_qp, X_out_qp;
     boost::multi_array<double, 1> P_jump_node;
     std::vector<double> P_i_qp, P_o_qp, P_in_qp, P_out_qp, P_jump_qp, N_qp;
-    std::array<VectorValue<double>, 2> dx_dxi;
+    std::array<VectorValue<double>, 2> dX_dxi;
 
     Pointer<PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(d_primary_fe_data_managers[part]->getLevelNumber());
     const Pointer<CartesianGridGeometry<NDIM> > grid_geom = level->getGridGeometry();
-    VectorValue<double> tau1, tau2, n;
+    VectorValue<double> tau1, tau2, n, N;
+
+    X_ghost_vec->close();
+    PetscVector<double>* X_petsc_vec = static_cast<PetscVector<double>*>(X_ghost_vec);
+    Vec X_global_vec = X_petsc_vec->vec();
+    Vec X_local_vec;
+    VecGhostGetLocalForm(X_global_vec, &X_local_vec);
+    double* X_local_soln;
+    VecGetArray(X_local_vec, &X_local_soln);
+    std::unique_ptr<NumericVector<double> > X0_vec = X_petsc_vec->clone();
+    copy_and_synch(X_system.get_vector("REFERENCE_COORDINATES"), *X0_vec);
+    X0_vec->close();
 
     int local_patch_num = 0;
     for (PatchLevel<NDIM>::Iterator p(level); p; p++, ++local_patch_num)
@@ -3162,6 +3173,7 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
                 X_dof_map.dof_indices(elem, X_dof_indices[d], d);
             }
             get_values_for_interpolation(x_node, *X_ghost_vec, X_dof_indices);
+            get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
 
             FEDataManager::updateInterpQuadratureRule(qrule, d_default_interp_spec, elem, x_node, patch_dx_min);
 
@@ -3174,9 +3186,9 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
         P_o_qp.resize(n_qp_patch);
         P_in_qp.resize(n_qp_patch);
         P_out_qp.resize(n_qp_patch);
-        x_in_qp.resize(NDIM * n_qp_patch);
-        x_out_qp.resize(NDIM * n_qp_patch);
-        x_qp.resize(NDIM * n_qp_patch);
+        X_in_qp.resize(NDIM * n_qp_patch);
+        X_out_qp.resize(NDIM * n_qp_patch);
+        X_qp.resize(NDIM * n_qp_patch);
         N_qp.resize(NDIM * n_qp_patch);
         std::fill(P_i_qp.begin(), P_i_qp.end(), 0.0);
         std::fill(P_o_qp.begin(), P_o_qp.end(), 0.0);
@@ -3196,7 +3208,7 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
                 X_dof_map.dof_indices(elem, X_dof_indices[d], d);
             }
             get_values_for_interpolation(x_node, *X_ghost_vec, X_dof_indices);
-
+            get_values_for_interpolation(X_node, *X0_vec, X_dof_indices);
             P_jump_dof_map_cache.dof_indices(elem, P_jump_dof_indices);
             get_values_for_interpolation(P_jump_node, *P_jump_ghost_vec, P_jump_dof_indices);
 
@@ -3215,14 +3227,14 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
             const unsigned int n_qp = qrule->n_points();
 
             // Zero out the values of X, du, and dv prior to accumulation.
-            double* x_begin = &x_qp[NDIM * qp_offset];
-            std::fill(x_begin, x_begin + NDIM * n_qp, 0.0);
+            double* X_begin = &X_qp[NDIM * qp_offset];
+            std::fill(X_begin, X_begin + NDIM * n_qp, 0.0);
 
-            double* x_in_begin = &x_in_qp[NDIM * qp_offset];
-            std::fill(x_in_begin, x_in_begin + NDIM * n_qp, 0.0);
+            double* X_in_begin = &X_in_qp[NDIM * qp_offset];
+            std::fill(X_in_begin, X_in_begin + NDIM * n_qp, 0.0);
 
-            double* x_out_begin = &x_out_qp[NDIM * qp_offset];
-            std::fill(x_out_begin, x_out_begin + NDIM * n_qp, 0.0);
+            double* X_out_begin = &X_out_qp[NDIM * qp_offset];
+            std::fill(X_out_begin, X_out_begin + NDIM * n_qp, 0.0);
 
             double* N_begin = &N_qp[NDIM * qp_offset];
             std::fill(N_begin, N_begin + NDIM * n_qp, 0.0);
@@ -3235,26 +3247,26 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
             {
                 for (unsigned int k = 0; k < NDIM - 1; ++k)
                 {
-                    interpolate(dx_dxi[k], qp, x_node, *dphi_dxi_X[k]);
+                    interpolate(dX_dxi[k], qp, X_node, *dphi_dxi_X[k]);
                 }
                 if (NDIM == 2)
                 {
-                    dx_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
+                    dX_dxi[1] = VectorValue<double>(0.0, 0.0, 1.0);
                 }
-                n = (dx_dxi[0].cross(dx_dxi[1])).unit();
+                N = (dX_dxi[0].cross(dX_dxi[1])).unit();
 
                 for (unsigned int i = 0; i < NDIM; ++i)
                 {
                     for (unsigned int k = 0; k < n_node; ++k)
                     {
                         const double& p_X = phi_X[k][qp];
-                        x_qp[NDIM * (qp_offset + qp) + i] += x_node[k][i] * p_X;
+                        X_qp[NDIM * (qp_offset + qp) + i] += X_node[k][i] * p_X;
                     }
                     N_qp[NDIM * (qp_offset + qp) + i] = n(i);
                     // Note that here we calculate the pressure on one side as the jump plus the pressure on the other
                     // side.
-                    x_in_qp[NDIM * (qp_offset + qp) + i] = x_qp[NDIM * (qp_offset + qp) + i] - n(i) * dh;
-                    x_out_qp[NDIM * (qp_offset + qp) + i] = x_qp[NDIM * (qp_offset + qp) + i] + n(i) * dh;
+                    X_in_qp[NDIM * (qp_offset + qp) + i] = X_qp[NDIM * (qp_offset + qp) + i] - N(i) * dh;
+                    X_out_qp[NDIM * (qp_offset + qp) + i] = X_qp[NDIM * (qp_offset + qp) + i] + N(i) * dh;
                 }
                 for (unsigned int k = 0; k < n_node; ++k)
                 {
@@ -3276,10 +3288,10 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
 
         const Box<NDIM> ghost_box = Box<NDIM>::grow(patch->getBox(), IntVector<NDIM>(p_ghost_num));
 
-        LEInteractor::interpolate(P_i_qp, 1, x_in_qp, NDIM, p_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
+        LEInteractor::interpolate(P_i_qp, 1, X_in_qp, NDIM, p_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
 
         LEInteractor::interpolate(
-            P_o_qp, 1, x_out_qp, NDIM, p_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
+            P_o_qp, 1, X_out_qp, NDIM, p_data, patch, ghost_box, d_default_interp_spec.kernel_fcn);
 
         std::vector<int> local_indices;
         local_indices.clear();
@@ -3289,20 +3301,20 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
         local_indices.reserve(upper_bound);
         for (unsigned int k = 0; k < n_qp_patch; ++k)
         {
-            const double* const xx = &x_qp[NDIM * k];
-            const Index<NDIM> i = IndexUtilities::getCellIndex(xx, patch_geom, interp_box);
+            const double* const XX = &X_qp[NDIM * k];
+            const Index<NDIM> i = IndexUtilities::getCellIndex(XX, patch_geom, interp_box);
             if (interp_box.contains(i)) local_indices.push_back(k);
 
-            const double* const x_i = &x_in_qp[NDIM * k];
+            const double* const X_i = &X_in_qp[NDIM * k];
             const Index<NDIM> ip = IndexUtilities::getCellIndex(
-                x_i, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
+                X_i, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
             if (!ghost_box.contains(ip) && interp_box.contains(i))
                 TBOX_ERROR(d_object_name << "::IBFESurfaceMethod():\n"
                                          << " the pressure interpolation ghost width hasn't beeen properly set"
                                          << std::endl);
-            const double* const x_o = &x_out_qp[NDIM * k];
+            const double* const X_o = &X_out_qp[NDIM * k];
             const Index<NDIM> op = IndexUtilities::getCellIndex(
-                x_o, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
+                X_o, x_lower_ghost, x_upper_ghost, patch_geom->getDx(), ghost_box.lower(), ghost_box.upper());
             if (!ghost_box.contains(op) && interp_box.contains(i))
                 TBOX_ERROR(d_object_name << "::IBFESurfaceMethod():\n"
                                          << " the pressure interpolation ghost width hasn't beeen properly set"
@@ -3373,6 +3385,9 @@ IBFESurfaceMethod::extrapolatePressureForTraction(const int p_data_idx, const do
     }
     P_in_rhs_vec->close();
     P_out_rhs_vec->close();
+
+    VecRestoreArray(X_local_vec, &X_local_soln);
+    VecGhostRestoreLocalForm(X_global_vec, &X_local_vec);
 
     d_primary_fe_data_managers[part]->computeL2Projection(
         *P_in_vec, *P_in_rhs_vec, PRESSURE_IN_SYSTEM_NAME, d_default_interp_spec.use_consistent_mass_matrix);
