@@ -30,7 +30,8 @@ c
      &     ilowerf0,iupperf0,
      &     ilowerf1,iupperf1,
      &     ratio_to_coarser,
-     &     coarse_box_lower,coarse_box_upper)
+     &     coarse_box_lower,coarse_box_upper,
+     &     physical_bdry_flags)
 c
       implicit none
 c
@@ -45,6 +46,8 @@ c
       INTEGER ratio_to_coarser(0:NDIM-1)
 
       INTEGER coarse_box_lower(0:NDIM-1), coarse_box_upper(0:NDIM-1)
+
+      INTEGER physical_bdry_flags(0:NDIM-1,0:1)
 
       REAL U_fine0(
      &     SIDE2d0(ilowerf,iupperf,U_fine_gcw)
@@ -69,7 +72,11 @@ c
 c
 c     Coarsen data.
 c
-      w_fac = 0.d0              ! lazy lazy lazy!
+
+c
+c     Treat x components away from physical boundaries:
+c
+      w_fac = 0.d0
       do j = 0,ratio_to_coarser(1)-1
          do i = -ratio_to_coarser(0)+1,ratio_to_coarser(0)-1
             w0 = 1.d0 - dabs(dble(i))/dble(ratio_to_coarser(0))
@@ -94,8 +101,66 @@ c
             enddo
          enddo
       enddo
+c
+c     Treat x components along physical boundaries:
+c
+      if (physical_bdry_flags(0,0) .eq. 1) then ! lower x patch bdry is on physical bdry
+         w_fac = 0.d0
+            do j = 0,ratio_to_coarser(1)-1
+               do i = 0,ratio_to_coarser(0)-1
+               w0 = 1.d0 - dabs(dble(i))/dble(ratio_to_coarser(0))
+               w1 = 1.d0
+               w_fac = w_fac + w0*w1
+            enddo
+         enddo
+         w_fac = 1.d0/w_fac
 
-      w_fac = 0.d0              ! lazy lazy lazy lazy!
+         do j_c = coarse_box_lower(1),coarse_box_upper(1)
+            i_c = ilowerc0
+            i_f = i_c*ratio_to_coarser(0)
+            j_f = j_c*ratio_to_coarser(1)
+            U_crse0(i_c,j_c) = 0.d0
+            do j = 0,ratio_to_coarser(1)-1
+               do i = 0,ratio_to_coarser(0)-1
+                  w0 = 1.d0 - dabs(dble(i))/dble(ratio_to_coarser(0))
+                  w1 = 1.d0
+                  U_crse0(i_c,j_c) = U_crse0(i_c,j_c) +
+     &               w0*w1*w_fac*U_fine0(i_f+i,j_f+j)
+               enddo
+            enddo
+         enddo
+      endif
+
+      if (physical_bdry_flags(0,1) .eq. 1) then ! upper x patch bdry is on physical bdry
+         w_fac = 0.d0
+            do j = 0,ratio_to_coarser(1)-1
+               do i = -ratio_to_coarser(0)+1,0
+               w0 = 1.d0 - dabs(dble(i))/dble(ratio_to_coarser(0))
+               w1 = 1.d0
+               w_fac = w_fac + w0*w1
+            enddo
+         enddo
+         w_fac = 1.d0/w_fac
+
+         do j_c = coarse_box_lower(1),coarse_box_upper(1)
+            i_c = iupperc0
+            i_f = i_c*ratio_to_coarser(0)
+            j_f = j_c*ratio_to_coarser(1)
+            U_crse0(i_c,j_c) = 0.d0
+            do j = 0,ratio_to_coarser(1)-1
+               do i = -ratio_to_coarser(0)+1,0
+                  w0 = 1.d0 - dabs(dble(i))/dble(ratio_to_coarser(0))
+                  w1 = 1.d0
+                  U_crse0(i_c,j_c) = U_crse0(i_c,j_c) +
+     &               w0*w1*w_fac*U_fine0(i_f+i,j_f+j)
+               enddo
+            enddo
+         enddo
+      endif
+c
+c     Treat y components away from physical boundaries:
+c
+      w_fac = 0.d0
       do j = -ratio_to_coarser(1)+1,ratio_to_coarser(1)-1
          do i = 0,ratio_to_coarser(0)-1
             w0 = 1.d0
@@ -120,6 +185,62 @@ c
             enddo
          enddo
       enddo
+c
+c     Treat y components along physical boundaries:
+c
+      if (physical_bdry_flags(1,0) .eq. 1) then ! lower y patch bdry is on physical bdry
+         w_fac = 0.d0
+         do j = 0,ratio_to_coarser(1)-1
+            do i = 0,ratio_to_coarser(0)-1
+               w0 = 1.d0
+               w1 = 1.d0 - dabs(dble(j))/dble(ratio_to_coarser(1))
+               w_fac = w_fac + w0*w1
+            enddo
+         enddo
+         w_fac = 1.d0/w_fac
+
+         j_c = ilowerc1
+         do i_c = coarse_box_lower(0),coarse_box_upper(0)
+            i_f = i_c*ratio_to_coarser(0)
+            j_f = j_c*ratio_to_coarser(1)
+            U_crse1(i_c,j_c) = 0.d0 ! coarsen data
+            do j = 0,ratio_to_coarser(1)-1
+               do i = 0,ratio_to_coarser(0)-1
+                  w0 = 1.d0
+                  w1 = 1.d0 - dabs(dble(j))/dble(ratio_to_coarser(1))
+                  U_crse1(i_c,j_c) = U_crse1(i_c,j_c) +
+     &                 w0*w1*w_fac*U_fine1(i_f+i,j_f+j)
+               enddo
+            enddo
+         enddo
+      endif
+
+      if (physical_bdry_flags(1,1) .eq. 1) then ! upper y patch bdry is on physical bdry
+         w_fac = 0.d0
+         do j = -ratio_to_coarser(1)+1,0
+            do i = 0,ratio_to_coarser(0)-1
+               w0 = 1.d0
+               w1 = 1.d0 - dabs(dble(j))/dble(ratio_to_coarser(1))
+               w_fac = w_fac + w0*w1
+            enddo
+         enddo
+         w_fac = 1.d0/w_fac
+
+         j_c = iupperc1
+         do i_c = coarse_box_lower(0),coarse_box_upper(0)
+            i_f = i_c*ratio_to_coarser(0)
+            j_f = j_c*ratio_to_coarser(1)
+            U_crse1(i_c,j_c) = 0.d0 ! coarsen data
+            do j = -ratio_to_coarser(1)+1,0
+               do i = 0,ratio_to_coarser(0)-1
+                  w0 = 1.d0
+                  w1 = 1.d0 - dabs(dble(j))/dble(ratio_to_coarser(1))
+                  U_crse1(i_c,j_c) = U_crse1(i_c,j_c) +
+     &                 w0*w1*w_fac*U_fine1(i_f+i,j_f+j)
+               enddo
+            enddo
+         enddo
+      endif
 c
       return
       end

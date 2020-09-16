@@ -19,6 +19,8 @@
 #include "SideVariable.h"
 #include "tbox/Pointer.h"
 
+#include "boost/multi_array.hpp"
+
 #include <string>
 #include <utility>
 
@@ -74,7 +76,8 @@ extern "C"
 #endif
                            const int* ratio_to_coarser,
                            const int* fblower,
-                           const int* fbupper);
+                           const int* fbupper,
+                           const int* physical_bdry_flags);
 }
 
 /////////////////////////////// NAMESPACE ////////////////////////////////////
@@ -163,6 +166,16 @@ CartSideDoubleRT0Coarsen::coarsen(Patch<NDIM>& coarse,
 #endif
     const Box<NDIM>& patch_box_fine = fine.getBox();
     const Box<NDIM>& patch_box_crse = coarse.getBox();
+    auto fine_patch_geom = fine.getPatchGeometry();
+    boost::multi_array<int, 2> physical_bdry_flags(boost::extents[NDIM][2], boost::fortran_storage_order());
+    for (int axis = 0; axis < NDIM; ++axis)
+    {
+        for (int upperlower = 0; upperlower <= 1; ++upperlower)
+        {
+            physical_bdry_flags[axis][upperlower] =
+                fine_patch_geom->getTouchesPeriodicBoundary(axis, upperlower) ? 1 : 0;
+        }
+    }
     for (int depth = 0; depth < data_depth; ++depth)
     {
         double* const U_crse0 = cdata->getPointer(0, depth);
@@ -205,7 +218,8 @@ CartSideDoubleRT0Coarsen::coarsen(Patch<NDIM>& coarse,
 #endif
                           ratio,
                           coarse_box.lower(),
-                          coarse_box.upper());
+                          coarse_box.upper(),
+                          physical_bdry_flags.data());
     }
     return;
 } // coarsen
