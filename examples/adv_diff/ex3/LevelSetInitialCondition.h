@@ -41,7 +41,7 @@ public:
     /*!
      * \brief Empty destructor.
      */
-    ~LevelSetInitialCondition();
+    ~LevelSetInitialCondition() = default;
 
     /*!
      * \brief Indicates whether the concrete LevelSetInitialCondition object is
@@ -62,11 +62,20 @@ public:
     //\}
 
 private:
-    LevelSetInitialCondition();
+    /*!
+     * Deleted default constructor.
+     */
+    LevelSetInitialCondition() = delete;
 
-    LevelSetInitialCondition(const LevelSetInitialCondition& from);
+    /*!
+     * Deleted copy constructor.
+     */
+    LevelSetInitialCondition(const LevelSetInitialCondition& from) = delete;
 
-    LevelSetInitialCondition& operator=(const LevelSetInitialCondition& that);
+    /*!
+     * Deleted assignment operator.
+     */
+    LevelSetInitialCondition& operator=(const LevelSetInitialCondition& that) = delete;
 
     /*!
      * Name of this object.

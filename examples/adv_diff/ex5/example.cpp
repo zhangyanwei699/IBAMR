@@ -31,10 +31,9 @@
 #include <ibamr/BrinkmanAdvDiffSemiImplicitHierarchyIntegrator.h>
 #include <ibamr/IBInterpolantHierarchyIntegrator.h>
 
+#include "ibtk/IndexUtilities.h"
 #include <ibtk/AppInitializer.h>
 #include <ibtk/HierarchyMathOps.h>
-#include <ibtk/IBTK_MPI.h>
-#include <ibtk/IndexUtilities.h>
 #include <ibtk/muParserCartGridFunction.h>
 #include <ibtk/muParserRobinBcCoefs.h>
 
@@ -43,7 +42,12 @@
 
 // Application specific includes
 #include "LevelSetInitialCondition.h"
-#include "LevelSetInitialCondition.cpp"
+
+// Struct to specify the function required for inhomogeneous Neumann conditions for Brinkman penalization
+struct BrinkmanPenalizationCtx
+{
+    double alpha;
+};
 
 void
 evaluate_brinkman_bc_callback_fcn(int B_idx, Pointer<HierarchyMathOps> hier_math_ops, double /*time*/, void* ctx)
@@ -52,6 +56,7 @@ evaluate_brinkman_bc_callback_fcn(int B_idx, Pointer<HierarchyMathOps> hier_math
     TBOX_ASSERT(NDIM == 2);
 #endif
 
+    BrinkmanPenalizationCtx* bp_ctx = static_cast<BrinkmanPenalizationCtx*>(ctx);
     Pointer<PatchHierarchy<NDIM> > patch_hierarchy = hier_math_ops->getPatchHierarchy();
     const int coarsest_ln = 0;
     const int finest_ln = patch_hierarchy->getFinestLevelNumber();
@@ -70,15 +75,16 @@ evaluate_brinkman_bc_callback_fcn(int B_idx, Pointer<HierarchyMathOps> hier_math
                 for (Box<NDIM>::Iterator it(SideGeometry<NDIM>::toSideBox(patch_box, axis)); it; it++)
                 {
                     SideIndex<NDIM> si(it(), axis, SideIndex<NDIM>::Lower);
-                    IBTK::Vector coord = IndexUtilities::getSideCenter(*patch, si);
+
+                    const double alpha = bp_ctx->alpha;
 
                     if (axis == 0)
                     {
-                        (*B_data)(si) = cos(coord[0]) * sin(coord[1]);
+                        (*B_data)(si) = alpha;
                     }
                     else if (axis == 1)
                     {
-                        (*B_data)(si) = sin(coord[0]) * cos(coord[1]);
+                        (*B_data)(si) = 0.0;
                     }
                 }
             }
@@ -126,6 +132,14 @@ main(int argc, char* argv[])
         const int restart_dump_interval = app_initializer->getRestartDumpInterval();
         const string restart_dump_dirname = app_initializer->getRestartDumpDirectory();
 
+        const bool dump_postproc_data = app_initializer->dumpPostProcessingData();
+        const int postproc_data_dump_interval = app_initializer->getPostProcessingDataDumpInterval();
+        const string postproc_data_dump_dirname = app_initializer->getPostProcessingDataDumpDirectory();
+        if (dump_postproc_data && (postproc_data_dump_interval > 0) && !postproc_data_dump_dirname.empty())
+        {
+            Utilities::recursiveMkdir(postproc_data_dump_dirname);
+        }
+
         const bool dump_timer_data = app_initializer->dumpTimerData();
         const int timer_dump_interval = app_initializer->getTimerDumpInterval();
 
@@ -137,7 +151,7 @@ main(int argc, char* argv[])
         //
         Pointer<AdvDiffHierarchyIntegrator> time_integrator;
         const string solver_type =
-            app_initializer->getComponentDatabase("Main")->getStringWithDefault("solver_type", "SEMI_IMPLICIT");
+            app_initializer->getComponentDatabase("Main")->getStringWithDefault("solver_type", "PREDICTOR_CORRECTOR");
         time_integrator = new BrinkmanAdvDiffSemiImplicitHierarchyIntegrator(
             "BrinkmanAdvDiffSemiImplicitHierarchyIntegrator",
             app_initializer->getComponentDatabase("BrinkmanAdvDiffSemiImplicitHierarchyIntegrator"));
@@ -160,28 +174,40 @@ main(int argc, char* argv[])
                                         load_balancer);
 
         // Set up the advected and diffused quantity.
-        const double radius = input_db->getDouble("RADIUS");
-        const string& ls_name = "level_set_solid";
-        Pointer<CellVariable<NDIM, double> > phi_solid_var = new CellVariable<NDIM, double>(ls_name);
-        time_integrator->registerTransportedQuantity(phi_solid_var, true);
-        time_integrator->setDiffusionCoefficient(phi_solid_var, 0.0);
-
-        // Origin of the cylinder.
-        IBTK::Vector2d origin(M_PI, M_PI);
-        const bool fluid_is_interior_to_cylinder = input_db->getBool("FLUID_IS_INTERIOR_TO_CYLINDER");
-        Pointer<CartGridFunction> phi_solid_init =
-            new LevelSetInitialCondition("ls_init", radius, origin, fluid_is_interior_to_cylinder);
-        time_integrator->setInitialConditions(phi_solid_var, phi_solid_init);
-
         const IntVector<NDIM>& periodic_shift = grid_geometry->getPeriodicShift();
+
+        Pointer<CellVariable<NDIM, double> > phi_left_solid_var =
+            new CellVariable<NDIM, double>("level_set_left_solid");
+        time_integrator->registerTransportedQuantity(phi_left_solid_var, true);
+        time_integrator->setDiffusionCoefficient(phi_left_solid_var, 0.0);
+
+        IBTK::Vector2d interface_left(0.0, 0.0);
+        Pointer<CartGridFunction> phi_left_solid_init =
+            new LevelSetInitialCondition("ls_left_solid_init", interface_left, true);
+        time_integrator->setInitialConditions(phi_left_solid_var, phi_left_solid_init);
+        std::vector<Pointer<CellVariable<NDIM, double> > > ls_vars;
+        ls_vars.push_back(phi_left_solid_var);
+
+        const string& ls_name = "level_set_right_solid";
+        Pointer<CellVariable<NDIM, double> > phi_right_solid_var = new CellVariable<NDIM, double>(ls_name);
+        time_integrator->registerTransportedQuantity(phi_right_solid_var, true);
+        time_integrator->setDiffusionCoefficient(phi_right_solid_var, 0.0);
+
+        // Origin of the circle1.
+        IBTK::Vector2d interface_right(M_PI, M_PI);
+        Pointer<CartGridFunction> phi_right_solid_init =
+            new LevelSetInitialCondition("ls_right_solid_init", interface_right);
+        time_integrator->setInitialConditions(phi_right_solid_var, phi_right_solid_init);
+        ls_vars.push_back(phi_right_solid_var);
+
         RobinBcCoefStrategy<NDIM>* phi_bc_coef = NULL;
         if (!(periodic_shift.min() > 0) && input_db->keyExists("PhiBcCoefs"))
         {
             phi_bc_coef = new muParserRobinBcCoefs(
                 "phi_bc_coef", app_initializer->getComponentDatabase("PhiBcCoefs"), grid_geometry);
-            time_integrator->setPhysicalBcCoef(phi_solid_var, phi_bc_coef);
+            time_integrator->setPhysicalBcCoef(phi_left_solid_var, phi_bc_coef);
+            time_integrator->setPhysicalBcCoef(phi_right_solid_var, phi_bc_coef);
         }
-
         Pointer<CellVariable<NDIM, double> > q_var = new CellVariable<NDIM, double>("q");
         time_integrator->registerTransportedQuantity(q_var, true);
         time_integrator->setDiffusionCoefficient(q_var, input_db->getDouble("KAPPA"));
@@ -201,15 +227,29 @@ main(int argc, char* argv[])
         }
         time_integrator->setPhysicalBcCoef(q_var, q_bc_coef);
 
-        // Brinkman penalization for Transport equation.
+        // Brinkman penalization for Transported quantity.
+        BrinkmanPenalizationCtx brinkman_penalization_ctx;
+        brinkman_penalization_ctx.alpha = input_db->getDouble("ALPHA");
         const double eta = input_db->getDouble("ETA");
         const double num_of_interface_cells = input_db->getDouble("NUMBER_OF_INTERFACE_CELLS");
         Pointer<BrinkmanAdvDiffBcHelper> brinkman_adv_diff =
             new BrinkmanAdvDiffBcHelper("BrinkmanAdvDiffBcHelper", time_integrator);
 
-        // setting inhomogeneous Neumann at the cylinder surface.
-        brinkman_adv_diff->registerInhomogeneousNeumannBC(
-            q_var, phi_solid_var, &evaluate_brinkman_bc_callback_fcn, nullptr, num_of_interface_cells, eta);
+        // setting inhomogeneous Neumann at the left surface.
+        brinkman_adv_diff->registerInhomogeneousNeumannBC(q_var,
+                                                          phi_left_solid_var,
+                                                          &evaluate_brinkman_bc_callback_fcn,
+                                                          static_cast<void*>(&brinkman_penalization_ctx),
+                                                          num_of_interface_cells,
+                                                          eta);
+
+        // setting inhomogeneous Neumann at the right surface.
+        brinkman_adv_diff->registerInhomogeneousNeumannBC(q_var,
+                                                          phi_right_solid_var,
+                                                          &evaluate_brinkman_bc_callback_fcn,
+                                                          static_cast<void*>(&brinkman_penalization_ctx),
+                                                          num_of_interface_cells,
+                                                          eta);
 
         Pointer<BrinkmanAdvDiffSemiImplicitHierarchyIntegrator> bp_adv_diff_hier_integrator = time_integrator;
         bp_adv_diff_hier_integrator->registerBrinkmanAdvDiffBcHelper(brinkman_adv_diff);
@@ -255,24 +295,24 @@ main(int argc, char* argv[])
             time_integrator->setupPlotData();
             visit_data_writer->writePlotData(patch_hierarchy, iteration_num, loop_time);
         }
-
         VariableDatabase<NDIM>* var_db = VariableDatabase<NDIM>::getDatabase();
         const int q_idx = var_db->mapVariableAndContextToIndex(q_var, time_integrator->getCurrentContext());
-        const int q_exact_cloned_idx = var_db->registerClonedPatchDataIndex(q_var, q_idx);
-        const int q_error_cloned_idx = var_db->registerClonedPatchDataIndex(q_var, q_idx);
-        const int phi_idx = var_db->mapVariableAndContextToIndex(phi_solid_var, time_integrator->getCurrentContext());
-        const int phi_cloned_idx = var_db->registerClonedPatchDataIndex(phi_solid_var, phi_idx);
+        const int q_ex_cloned_idx = var_db->registerClonedPatchDataIndex(q_var, q_idx);
+        const int q_err_cloned_idx = var_db->registerClonedPatchDataIndex(q_var, q_idx);
+        const int phi_left_idx =
+            var_db->mapVariableAndContextToIndex(phi_left_solid_var, time_integrator->getCurrentContext());
+        const int phi_cloned_idx = var_db->registerClonedPatchDataIndex(phi_left_solid_var, phi_left_idx);
 
         const int coarsest_ln = 0;
         const int finest_ln = patch_hierarchy->getFinestLevelNumber();
         for (int ln = coarsest_ln; ln <= finest_ln; ++ln)
         {
-            patch_hierarchy->getPatchLevel(ln)->allocatePatchData(q_exact_cloned_idx, loop_time);
-            patch_hierarchy->getPatchLevel(ln)->allocatePatchData(q_error_cloned_idx, loop_time);
+            patch_hierarchy->getPatchLevel(ln)->allocatePatchData(q_ex_cloned_idx, loop_time);
+            patch_hierarchy->getPatchLevel(ln)->allocatePatchData(q_err_cloned_idx, loop_time);
             patch_hierarchy->getPatchLevel(ln)->allocatePatchData(phi_cloned_idx, loop_time);
         }
-        visit_data_writer->registerPlotQuantity("q_exact", "SCALAR", q_exact_cloned_idx);
-        visit_data_writer->registerPlotQuantity("q_error", "SCALAR", q_error_cloned_idx);
+        visit_data_writer->registerPlotQuantity("q_exact", "SCALAR", q_ex_cloned_idx);
+        visit_data_writer->registerPlotQuantity("q_error", "SCALAR", q_err_cloned_idx);
 
         HierarchyMathOps hier_math_ops("HierarchyMathOps", patch_hierarchy);
         hier_math_ops.setPatchHierarchy(patch_hierarchy);
@@ -280,7 +320,6 @@ main(int argc, char* argv[])
 
         const int wgt_cc_idx = hier_math_ops.getCellWeightPatchDescriptorIndex();
         HierarchyCellDataOpsReal<NDIM, double> hier_cc_data_ops(patch_hierarchy, coarsest_ln, finest_ln);
-
         // Main time step loop.
         double loop_time_end = time_integrator->getEndTime();
         double dt = 0.0;
@@ -313,59 +352,130 @@ main(int argc, char* argv[])
             for (int ln = coarsest_ln; ln <= finest_ln; ++ln)
             {
                 Pointer<PatchLevel<NDIM> > level = patch_hierarchy->getPatchLevel(ln);
+
                 for (PatchLevel<NDIM>::Iterator p(level); p; p++)
                 {
                     Pointer<Patch<NDIM> > patch = level->getPatch(p());
                     const Box<NDIM>& patch_box = patch->getBox();
                     const Pointer<CartesianPatchGeometry<NDIM> > patch_geom = patch->getPatchGeometry();
-                    Pointer<CellData<NDIM, double> > phi_data = patch->getPatchData(phi_idx);
+
+                    Pointer<CellData<NDIM, double> > q_data = patch->getPatchData(q_idx);
                     Pointer<CellData<NDIM, double> > H_data = patch->getPatchData(phi_cloned_idx);
 
                     for (Box<NDIM>::Iterator it(patch_box); it; it++)
                     {
                         CellIndex<NDIM> ci(it());
-                        double phi = (*phi_data)(ci);
-                        if (phi > 0.0)
+                        double chi = 0.0;
+                        for (const auto& phi_solid_var : ls_vars)
                         {
-                            (*H_data)(ci) = 1.0;
+                            const int phi_idx = var_db->mapVariableAndContextToIndex(
+                                phi_solid_var, time_integrator->getCurrentContext());
+                            Pointer<CellData<NDIM, double> > phi_data = patch->getPatchData(phi_idx);
+                            const double phi = (*phi_data)(ci);
+                            double Hphi = 0.0;
+                            if (phi > 0.0)
+                            {
+                                Hphi = 1.0;
+                            }
+                            chi += (1.0 - Hphi);
                         }
-                        else
+                        (*H_data)(ci) = 1.0 - chi;
+                    }
+                }
+            }
+
+            double vol = hier_cc_data_ops.integral(phi_cloned_idx, wgt_cc_idx);
+            hier_cc_data_ops.multiply(phi_cloned_idx, phi_cloned_idx, wgt_cc_idx);
+            double q_integral = hier_cc_data_ops.integral(q_idx, phi_cloned_idx);
+            hier_cc_data_ops.addScalar(q_idx, q_idx, -q_integral / vol);
+            q_integral = hier_cc_data_ops.integral(q_idx, phi_cloned_idx);
+            pout << "q integral" << std::setprecision(10) << q_integral << "\n";
+
+            q_ex->setDataOnPatchHierarchy(q_ex_cloned_idx, q_var, patch_hierarchy, loop_time);
+            hier_cc_data_ops.subtract(q_err_cloned_idx, q_idx, q_ex_cloned_idx);
+
+            // Writing the exact and numerical soln
+            std::ofstream q_ex_y_cut, q_y_cut;
+            q_ex_y_cut.open("Exact_soln_at_y_plane.dat");
+            q_ex_y_cut.precision(12);
+
+            q_y_cut.open("numerical_soln_at_y_plane.dat");
+            q_y_cut.precision(12);
+
+            for (int ln = coarsest_ln; ln <= finest_ln; ++ln)
+            {
+                Pointer<PatchLevel<NDIM> > level = patch_hierarchy->getPatchLevel(ln);
+
+                for (PatchLevel<NDIM>::Iterator p(level); p; p++)
+                {
+                    Pointer<Patch<NDIM> > patch = level->getPatch(p());
+                    const Box<NDIM>& patch_box = patch->getBox();
+                    const Pointer<CartesianPatchGeometry<NDIM> > patch_geom = patch->getPatchGeometry();
+
+                    Pointer<CellData<NDIM, double> > q_data = patch->getPatchData(q_idx);
+                    Pointer<CellData<NDIM, double> > q_ex_data = patch->getPatchData(q_ex_cloned_idx);
+
+                    for (Box<NDIM>::Iterator it(patch_box); it; it++)
+                    {
+                        CellIndex<NDIM> ci(it());
+                        CellIndex<NDIM> ci_1 = ci;
+                        double chi = 0.0;
+                        for (const auto& phi_solid_var : ls_vars)
                         {
-                            (*H_data)(ci) = 0.0;
+                            const int phi_idx = var_db->mapVariableAndContextToIndex(
+                                phi_solid_var, time_integrator->getCurrentContext());
+                            Pointer<CellData<NDIM, double> > phi_data = patch->getPatchData(phi_idx);
+                            const double phi = (*phi_data)(ci);
+                            double Hphi = 0.0;
+                            if (phi > 0.0)
+                            {
+                                Hphi = 1.0;
+                            }
+                            chi += (1.0 - Hphi);
+                        }
+                        IBTK::Vector coord = IBTK::Vector::Zero();
+
+                        Pointer<CartesianPatchGeometry<NDIM> > patch_geom = patch->getPatchGeometry();
+                        const double* patch_X_lower = patch_geom->getXLower();
+                        const hier::Index<NDIM>& patch_lower_idx = patch_box.lower();
+                        const double* const patch_dx = patch_geom->getDx();
+                        for (int d = 0; d < NDIM; ++d)
+                        {
+                            coord[d] = patch_X_lower[d] +
+                                       patch_dx[d] * (static_cast<double>(ci(d) - patch_lower_idx(d) + 0.5));
+                        }
+                        double desired_loc = 0.0; // specify the location on y-direction
+
+                        // printing the values along y-plane
+                        ci_1[0] = ci[0];
+                        ci_1[1] += 1;
+                        const double y0 = coord[1];
+                        const double y1 = coord[1] + patch_dx[1];
+                        if ((y0 <= 0.0) && (y1 >= 0.0) && (chi == 0.0))
+                        {
+                            const double qc = (1.0 - chi) * (*q_data)(ci);
+                            const double qnb = (1.0 - chi) * (*q_data)(ci_1);
+
+                            const double x = coord[0];
+                            q_y_cut << x << "\t" << qc + (qc - qnb) * (desired_loc - y0) / (y1 - y0) << std::endl;
+
+                            const double q_ex_c = (1.0 - chi) * (*q_ex_data)(ci);
+                            const double q_ex_nb = (1.0 - chi) * (*q_ex_data)(ci_1);
+                            q_ex_y_cut << x << "\t" << q_ex_c + (q_ex_c - q_ex_nb) * (desired_loc - y0) / (y1 - y0)
+                                       << std::endl;
                         }
                     }
                 }
             }
-            double vol = hier_cc_data_ops.integral(phi_cloned_idx, wgt_cc_idx);
 
-            // Get volume weights in the region
-            hier_cc_data_ops.multiply(phi_cloned_idx, phi_cloned_idx, wgt_cc_idx);
-            if (fluid_is_interior_to_cylinder)
-            {
-                double q_integral = hier_cc_data_ops.integral(q_idx, phi_cloned_idx);
-                hier_cc_data_ops.addScalar(q_idx, q_idx, -q_integral / vol);
-                q_integral = hier_cc_data_ops.integral(q_idx, phi_cloned_idx);
-            }
+            q_ex_y_cut.close();
+            q_y_cut.close();
 
-            q_ex->setDataOnPatchHierarchy(q_exact_cloned_idx, q_var, patch_hierarchy, loop_time);
-            hier_cc_data_ops.subtract(q_error_cloned_idx, q_idx, q_exact_cloned_idx);
-
-            pout << "Error in q (only in the fluid region) at time " << loop_time << ":\n"
-                 << "  L1-norm:  " << std::setprecision(10)
-                 << hier_cc_data_ops.L1Norm(q_error_cloned_idx, phi_cloned_idx) << "\n"
-                 << "  L2-norm:  " << hier_cc_data_ops.L2Norm(q_error_cloned_idx, phi_cloned_idx) << "\n"
-                 << "  max-norm: " << hier_cc_data_ops.maxNorm(q_error_cloned_idx, phi_cloned_idx) << "\n";
-
-            if (IBTK_MPI::getRank() == 0)
-            {
-                std::ofstream out("output");
-                out << "Error in q (only in the fluid region):L1-norm = " << std::setprecision(10)
-                    << hier_cc_data_ops.L1Norm(q_error_cloned_idx, phi_cloned_idx) << std::endl;
-                out << "Error in q (only in the fluid region):L2-norm = " << std::setprecision(10)
-                    << hier_cc_data_ops.L2Norm(q_error_cloned_idx, phi_cloned_idx) << std::endl;
-                out << "Error in q (only in the fluid region):max-norm = " << std::setprecision(10)
-                    << hier_cc_data_ops.maxNorm(q_error_cloned_idx, phi_cloned_idx) << std::endl;
-            }
+            pout << "Error in q at time " << loop_time << ":\n"
+                 << "  L1-norm:  " << std::setprecision(10) << hier_cc_data_ops.L1Norm(q_err_cloned_idx, phi_cloned_idx)
+                 << "\n"
+                 << "  L2-norm:  " << hier_cc_data_ops.L2Norm(q_err_cloned_idx, phi_cloned_idx) << "\n"
+                 << "  max-norm: " << hier_cc_data_ops.maxNorm(q_err_cloned_idx, phi_cloned_idx) << "\n";
 
             // At specified intervals, write visualization and restart files,
             // print out timer data, and store hierarchy data for post
@@ -388,12 +498,15 @@ main(int argc, char* argv[])
                 pout << "\nWriting timer data...\n\n";
                 TimerManager::getManager()->print(plog);
             }
+            if (dump_postproc_data && (iteration_num % postproc_data_dump_interval == 0 || last_step))
+            {
+            }
         }
 
         for (int ln = coarsest_ln; ln <= finest_ln; ++ln)
         {
-            patch_hierarchy->getPatchLevel(ln)->deallocatePatchData(q_exact_cloned_idx);
-            patch_hierarchy->getPatchLevel(ln)->deallocatePatchData(q_error_cloned_idx);
+            patch_hierarchy->getPatchLevel(ln)->deallocatePatchData(q_ex_cloned_idx);
+            patch_hierarchy->getPatchLevel(ln)->deallocatePatchData(q_err_cloned_idx);
             patch_hierarchy->getPatchLevel(ln)->deallocatePatchData(phi_cloned_idx);
         }
 

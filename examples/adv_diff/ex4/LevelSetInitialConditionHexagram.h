@@ -11,15 +11,14 @@
 //
 // ---------------------------------------------------------------------
 
-#ifndef included_LevelSetInitialCondition
-#define included_LevelSetInitialCondition
+#ifndef included_LevelSetInitialConditionHexagram
+#define included_LevelSetInitialConditionHexagram
 
 /////////////////////////////// INCLUDES /////////////////////////////////////
 
 // IBAMR INCLUDES
+#include <ibamr/AdvDiffHierarchyIntegrator.h>
 #include <ibamr/app_namespaces.h>
-
-#include <ibtk/muParserCartGridFunction.h>
 
 /////////////////////////////// CLASS DEFINITION /////////////////////////////
 
@@ -27,27 +26,35 @@
  * \brief Class LevelSetInitialCondition provides an initial condition for
  * the level set function.
  */
-class LevelSetInitialCondition : public CartGridFunction
+class LevelSetInitialConditionHexagram : public CartGridFunction
 {
 public:
     /*!
      * \brief Class constructor.
      */
-    LevelSetInitialCondition(const std::string& object_name,
-                             const double radius,
-                             const IBTK::VectorNd& origin,
-                             const bool fluid_is_interior_to_cylinder);
+    LevelSetInitialConditionHexagram(const std::string& object_name, const IBTK::VectorNd& origin);
 
     /*!
      * \brief Empty destructor.
      */
-    ~LevelSetInitialCondition() = default;
+    ~LevelSetInitialConditionHexagram() = default;
+
+    /*!
+     * \name Methods to set patch data.
+     */
+    //\{
 
     /*!
      * \brief Indicates whether the concrete LevelSetInitialCondition object is
      * time-dependent.
      */
     bool isTimeDependent() const override;
+
+    /*!
+     * \brief Indicates whether the LevelSetInitialCondition corresponds to inner
+     * or outer cylinder.
+     */
+    void setCylinderType(std::string type);
 
     /*!
      * \brief Evaluate the function on the patch interior.
@@ -62,11 +69,20 @@ public:
     //\}
 
 private:
-    LevelSetInitialCondition() = delete;
+    /*!
+     * Deleted default constructor.
+     */
+    LevelSetInitialConditionHexagram() = delete;
 
-    LevelSetInitialCondition(const LevelSetInitialCondition& from) = delete;
+    /*!
+     * Deleted copy constructor.
+     */
+    LevelSetInitialConditionHexagram(const LevelSetInitialConditionHexagram& from) = delete;
 
-    LevelSetInitialCondition& operator=(const LevelSetInitialCondition& that) = delete;
+    /*!
+     * Deleted assignment operator.
+     */
+    LevelSetInitialConditionHexagram& operator=(const LevelSetInitialConditionHexagram& that) = delete;
 
     /*!
      * Name of this object.
@@ -74,20 +90,9 @@ private:
     std::string d_object_name;
 
     /*!
-     * Radius of cylinder.
-     */
-    double d_radius;
-
-    /*!
      * Origin of cylinder.
      */
     IBTK::VectorNd d_origin;
-
-    /*!
-     * Boolean to identify whether fluid is considered inside the cylinder or outside.
-     * Default is set false to denote the annulus case.
-     */
-    bool d_fluid_is_interior_to_cylinder = false;
 };
 
 //////////////////////////////////////////////////////////////////////////////

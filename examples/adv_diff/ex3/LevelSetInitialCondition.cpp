@@ -37,12 +37,6 @@ LevelSetInitialCondition::LevelSetInitialCondition(const std::string& object_nam
     return;
 } // LevelSetInitialCondition
 
-LevelSetInitialCondition::~LevelSetInitialCondition()
-{
-    // intentionally blank
-    return;
-} // ~LevelSetInitialCondition
-
 bool
 LevelSetInitialCondition::isTimeDependent() const
 {

@@ -11,7 +11,7 @@
 //
 // ---------------------------------------------------------------------
 
-#include "LevelSetInitialCondition.h"
+#include "LevelSetInitialConditionCircle.h"
 
 /////////////////////////////// INCLUDES /////////////////////////////////////
 
@@ -24,10 +24,10 @@
 
 /////////////////////////////// PUBLIC ///////////////////////////////////////
 
-LevelSetInitialCondition::LevelSetInitialCondition(const std::string& object_name,
-                                                   const double radius,
-                                                   const IBTK::VectorNd& origin,
-                                                   const bool fluid_is_interior_to_cylinder)
+LevelSetInitialConditionCircle::LevelSetInitialConditionCircle(const std::string& object_name,
+                                                               const double radius,
+                                                               const IBTK::VectorNd& origin,
+                                                               const bool fluid_is_interior_to_cylinder)
     : d_object_name(object_name),
       d_radius(radius),
       d_origin(origin),
@@ -35,21 +35,21 @@ LevelSetInitialCondition::LevelSetInitialCondition(const std::string& object_nam
 {
     // intentionally blank
     return;
-} // LevelSetInitialCondition
+} // LevelSetInitialConditionCircle
 
 bool
-LevelSetInitialCondition::isTimeDependent() const
+LevelSetInitialConditionCircle::isTimeDependent() const
 {
     return true;
 } // isTimeDependent
 
 void
-LevelSetInitialCondition::setDataOnPatch(const int data_idx,
-                                         Pointer<Variable<NDIM> > /*var*/,
-                                         Pointer<Patch<NDIM> > patch,
-                                         const double /*data_time*/,
-                                         const bool initial_time,
-                                         Pointer<PatchLevel<NDIM> > /*patch_level*/)
+LevelSetInitialConditionCircle::setDataOnPatch(const int data_idx,
+                                               Pointer<Variable<NDIM> > /*var*/,
+                                               Pointer<Patch<NDIM> > patch,
+                                               const double /*data_time*/,
+                                               const bool initial_time,
+                                               Pointer<PatchLevel<NDIM> > /*patch_level*/)
 {
     // Set the level set function throughout the domain
     if (initial_time)

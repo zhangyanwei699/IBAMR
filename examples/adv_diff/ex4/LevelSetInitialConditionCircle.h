@@ -11,8 +11,8 @@
 //
 // ---------------------------------------------------------------------
 
-#ifndef included_LevelSetInitialCondition
-#define included_LevelSetInitialCondition
+#ifndef included_LevelSetInitialConditionCircle
+#define included_LevelSetInitialConditionCircle
 
 /////////////////////////////// INCLUDES /////////////////////////////////////
 
@@ -27,21 +27,21 @@
  * \brief Class LevelSetInitialCondition provides an initial condition for
  * the level set function.
  */
-class LevelSetInitialCondition : public CartGridFunction
+class LevelSetInitialConditionCircle : public CartGridFunction
 {
 public:
     /*!
      * \brief Class constructor.
      */
-    LevelSetInitialCondition(const std::string& object_name,
-                             const double radius,
-                             const IBTK::VectorNd& origin,
-                             const bool fluid_is_interior_to_cylinder);
+    LevelSetInitialConditionCircle(const std::string& object_name,
+                                   const double radius,
+                                   const IBTK::VectorNd& origin,
+                                   const bool fluid_is_interior_to_cylinder = false);
 
     /*!
      * \brief Empty destructor.
      */
-    ~LevelSetInitialCondition() = default;
+    ~LevelSetInitialConditionCircle() = default;
 
     /*!
      * \brief Indicates whether the concrete LevelSetInitialCondition object is
@@ -62,11 +62,20 @@ public:
     //\}
 
 private:
-    LevelSetInitialCondition() = delete;
+    /*!
+     * Deleted default constructor.
+     */
+    LevelSetInitialConditionCircle() = delete;
 
-    LevelSetInitialCondition(const LevelSetInitialCondition& from) = delete;
+    /*!
+     * Deleted copy constructor.
+     */
+    LevelSetInitialConditionCircle(const LevelSetInitialConditionCircle& from) = delete;
 
-    LevelSetInitialCondition& operator=(const LevelSetInitialCondition& that) = delete;
+    /*!
+     * Deleted assignment operator.
+     */
+    LevelSetInitialConditionCircle& operator=(const LevelSetInitialConditionCircle& that) = delete;
 
     /*!
      * Name of this object.

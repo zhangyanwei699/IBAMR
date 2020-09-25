@@ -27,9 +27,9 @@
 #include <StandardTagAndInitialize.h>
 
 // Headers for application-specific algorithm/data structure objects
-#include <ibamr/AdvDiffPredictorCorrectorHierarchyIntegrator.h>
-#include <ibamr/AdvDiffSemiImplicitHierarchyIntegrator.h>
-#include <ibamr/BrinkmanPenalizationAdvDiff.h>
+#include <ibamr/BrinkmanAdvDiffBcHelper.h>
+#include <ibamr/BrinkmanAdvDiffSemiImplicitHierarchyIntegrator.h>
+#include <ibamr/IBInterpolantHierarchyIntegrator.h>
 
 #include <ibtk/AppInitializer.h>
 #include <ibtk/HierarchyMathOps.h>
@@ -136,17 +136,9 @@ main(int argc, char* argv[])
         Pointer<AdvDiffHierarchyIntegrator> time_integrator;
         const string solver_type =
             app_initializer->getComponentDatabase("Main")->getStringWithDefault("solver_type", "SEMI_IMPLICIT");
-        if (solver_type == "SEMI_IMPLICIT")
-        {
-            time_integrator = new AdvDiffSemiImplicitHierarchyIntegrator(
-                "AdvDiffSemiImplicitHierarchyIntegrator",
-                app_initializer->getComponentDatabase("AdvDiffSemiImplicitHierarchyIntegrator"));
-        }
-        else
-        {
-            TBOX_ERROR("Unsupported solver type: " << solver_type << "\n"
-                                                   << "Valid option is: SEMI_IMPLICIT");
-        }
+        time_integrator = new BrinkmanAdvDiffSemiImplicitHierarchyIntegrator(
+            "AdvDiffSemiImplicitHierarchyIntegrator",
+            app_initializer->getComponentDatabase("AdvDiffSemiImplicitHierarchyIntegrator"));
 
         Pointer<CartesianGridGeometry<NDIM> > grid_geometry = new CartesianGridGeometry<NDIM>(
             "CartesianGeometry", app_initializer->getComponentDatabase("CartesianGeometry"));
@@ -210,13 +202,14 @@ main(int argc, char* argv[])
         // Brinkman penalization for Transport equation.
         const double eta = input_db->getDouble("ETA");
         const double num_of_interface_cells = input_db->getDouble("NUMBER_OF_INTERFACE_CELLS");
-        Pointer<BrinkmanPenalizationAdvDiff> brinkman_adv_diff =
-            new BrinkmanPenalizationAdvDiff("BrinkmanPenalizationAdvDiff", time_integrator);
+        Pointer<BrinkmanAdvDiffBcHelper> brinkman_adv_diff =
+            new BrinkmanAdvDiffBcHelper("BrinkmanAdvDiffBcHelper", time_integrator);
 
         // setting inhomogeneous Neumann at the cylinder surface.
         brinkman_adv_diff->registerInhomogeneousNeumannBC(
             q_var, phi_solid_var, &evaluate_brinkman_bc_callback_fcn, nullptr, num_of_interface_cells, eta);
-        time_integrator->registerBrinkmanPenalization(brinkman_adv_diff);
+        Pointer<BrinkmanAdvDiffSemiImplicitHierarchyIntegrator> bp_adv_diff_hier_integrator = time_integrator;
+        bp_adv_diff_hier_integrator->registerBrinkmanAdvDiffBcHelper(brinkman_adv_diff);
 
         if (input_db->keyExists("TransportedQuantityForcingFunction"))
         {
@@ -282,7 +275,6 @@ main(int argc, char* argv[])
         hier_math_ops.setPatchHierarchy(patch_hierarchy);
         hier_math_ops.resetLevels(coarsest_ln, finest_ln);
 
-        const int wgt_sc_idx = hier_math_ops.getSideWeightPatchDescriptorIndex();
         const int wgt_cc_idx = hier_math_ops.getCellWeightPatchDescriptorIndex();
         HierarchyCellDataOpsReal<NDIM, double> hier_cc_data_ops(patch_hierarchy, coarsest_ln, finest_ln);
 
@@ -323,7 +315,6 @@ main(int argc, char* argv[])
                     Pointer<Patch<NDIM> > patch = level->getPatch(p());
                     const Box<NDIM>& patch_box = patch->getBox();
                     const Pointer<CartesianPatchGeometry<NDIM> > patch_geom = patch->getPatchGeometry();
-                    const double* patch_dx = patch_geom->getDx();
                     Pointer<CellData<NDIM, double> > phi_data = patch->getPatchData(phi_idx);
                     Pointer<CellData<NDIM, double> > H_data = patch->getPatchData(phi_cloned_idx);
 
@@ -331,7 +322,6 @@ main(int argc, char* argv[])
                     {
                         CellIndex<NDIM> ci(it());
                         double phi = (*phi_data)(ci);
-                        double Hphi;
                         if (phi > 0.0)
                         {
                             (*H_data)(ci) = 1.0;

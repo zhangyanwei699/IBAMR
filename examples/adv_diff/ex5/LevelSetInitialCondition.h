@@ -34,9 +34,8 @@ public:
      * \brief Class constructor.
      */
     LevelSetInitialCondition(const std::string& object_name,
-                             const double radius,
-                             const IBTK::VectorNd& origin,
-                             const bool fluid_is_interior_to_cylinder);
+                             const IBTK::VectorNd& interface_loc,
+                             const bool left_side = false);
 
     /*!
      * \brief Empty destructor.
@@ -62,10 +61,19 @@ public:
     //\}
 
 private:
+    /*!
+     * Deleted default constructor.
+     */
     LevelSetInitialCondition() = delete;
 
+    /*!
+     * Deleted copy constructor.
+     */
     LevelSetInitialCondition(const LevelSetInitialCondition& from) = delete;
 
+    /*!
+     * Deleted assignment operator.
+     */
     LevelSetInitialCondition& operator=(const LevelSetInitialCondition& that) = delete;
 
     /*!
@@ -74,20 +82,14 @@ private:
     std::string d_object_name;
 
     /*!
-     * Radius of cylinder.
-     */
-    double d_radius;
-
-    /*!
      * Origin of cylinder.
      */
-    IBTK::VectorNd d_origin;
+    IBTK::VectorNd d_interface_loc;
 
     /*!
-     * Boolean to identify whether fluid is considered inside the cylinder or outside.
-     * Default is set false to denote the annulus case.
+     * Sepecify the side on which interface is located.
      */
-    bool d_fluid_is_interior_to_cylinder = false;
+    bool d_left_side = false;
 };
 
 //////////////////////////////////////////////////////////////////////////////

@@ -11,11 +11,12 @@
 //
 // ---------------------------------------------------------------------
 
-#ifndef included_BrinkmanPenalizationAdvDiff
-#define included_BrinkmanPenalizationAdvDiff
+#ifndef included_BrinkmanAdvDiffBcHelper
+#define included_BrinkmanAdvDiffBcHelper
 
 /////////////////////////////// INCLUDES /////////////////////////////////////
 
+#include "ibamr/AdvDiffHierarchyIntegrator.h"
 #include "ibamr/ibamr_enums.h"
 
 #include "ibtk/ibtk_macros.h"
@@ -33,31 +34,22 @@
 
 /////////////////////////////// NAMESPACE ////////////////////////////////////
 
-namespace IBAMR
+namespace IBTK
 {
-class AdvDiffHierarchyIntegrator;
-} // namespace IBAMR
-namespace SAMRAI
-{
-namespace pdat
-{
-template <int DIM, class TYPE>
-class CellVariable;
-} // namespace pdat
-} // namespace SAMRAI
-
+class HierarchyMathOps;
+}
 /////////////////////////////// CLASS DEFINITION /////////////////////////////
 
 namespace IBAMR
 {
 /*!
- * \brief BrinkmanPenalizationAdvDiff is an abstract class that provides an interface
+ * \brief BrinkmanAdvDiffBcHelper is an abstract class that provides an interface
  * to implement Brinkman penalization body force in the advection-diffusion equation
  * in order to enforce Dirichlet and Neumann boundary conditions on surfaces of rigid
  * immersed bodies. A single instance of this class is meant to handle all of the Brinkman
  * penalization zones for multiple transported quantities with various boundary conditions.
 
- * BrinkmanPenalizationAdvDiff provides an implementation of a volume penalized
+ * BrinkmanAdvDiffBcHelper provides an implementation of a volume penalized
  * body force and linear operator modifications required to impose Dirichlet or Neumann
  * boundary conditions to scalar quantities maintained by AdvDiffHierarchyIntegrator.
  *
@@ -70,19 +62,19 @@ namespace IBAMR
  HREF="https://www.sciencedirect.com/science/article/pii/S0021999119302414">
  * Volume penalization for inhomogeneous Neumann boundary conditions modeling scalar flux in complicated geometry</A>
  */
-class BrinkmanPenalizationAdvDiff : public virtual SAMRAI::tbox::DescribedClass
+class BrinkmanAdvDiffBcHelper : public virtual SAMRAI::tbox::DescribedClass
 {
 public:
     /*!
      * \brief Constructor of the class.
      */
-    BrinkmanPenalizationAdvDiff(std::string object_name,
-                                SAMRAI::tbox::Pointer<IBAMR::AdvDiffHierarchyIntegrator> adv_diff_solver);
+    BrinkmanAdvDiffBcHelper(std::string object_name,
+                            SAMRAI::tbox::Pointer<IBAMR::AdvDiffHierarchyIntegrator> adv_diff_solver);
 
     /*!
      * \brief Destructor of the class.
      */
-    ~BrinkmanPenalizationAdvDiff() = default;
+    ~BrinkmanAdvDiffBcHelper() = default;
 
     /*!
      * \brief Set the time interval in which Brinkman forcing is computed.
@@ -93,13 +85,13 @@ public:
      * \brief Preprocess routine before computing Brinkman penalization terms.
      *
      */
-    void preprocessBrinkmanPenalizationAdvDiff(double current_time, double new_time, int num_cycles);
+    void preprocessBrinkmanAdvDiffBcHelper(double current_time, double new_time, int num_cycles);
 
     /*!
      * \brief Postprocess routine after computing Brinkman penalization terms.
      *
      */
-    void postprocessBrinkmanPenalizationAdvDiff(double current_time, double new_time, int num_cycles);
+    void postprocessBrinkmanAdvDiffBcHelper(double current_time, double new_time, int num_cycles);
 
     /*!
      * \brief Set Brinkman penalization penalty factor for all level sets.
@@ -241,7 +233,7 @@ private:
      *
      * \param from The value to copy to this object.
      */
-    BrinkmanPenalizationAdvDiff(const BrinkmanPenalizationAdvDiff& from) = delete;
+    BrinkmanAdvDiffBcHelper(const BrinkmanAdvDiffBcHelper& from) = delete;
 
     /*!
      * \brief Assignment operator.
@@ -252,7 +244,7 @@ private:
      *
      * \return A reference to this object.
      */
-    BrinkmanPenalizationAdvDiff& operator=(const BrinkmanPenalizationAdvDiff& that) = delete;
+    BrinkmanAdvDiffBcHelper& operator=(const BrinkmanAdvDiffBcHelper& that) = delete;
 
     /*!
      * Struct to maintain the properties a particular boundary condition
@@ -303,4 +295,4 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-#endif //#ifndef included_BrinkmanPenalizationAdvDiff
+#endif //#ifndef included_BrinkmanAdvDiffBcHelper

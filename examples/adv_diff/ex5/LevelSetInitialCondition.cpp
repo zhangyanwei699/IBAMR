@@ -25,13 +25,9 @@
 /////////////////////////////// PUBLIC ///////////////////////////////////////
 
 LevelSetInitialCondition::LevelSetInitialCondition(const std::string& object_name,
-                                                   const double radius,
-                                                   const IBTK::VectorNd& origin,
-                                                   const bool fluid_is_interior_to_cylinder)
-    : d_object_name(object_name),
-      d_radius(radius),
-      d_origin(origin),
-      d_fluid_is_interior_to_cylinder(fluid_is_interior_to_cylinder)
+                                                   const IBTK::VectorNd& interface_loc,
+                                                   const bool left_side)
+    : d_object_name(object_name), d_interface_loc(interface_loc), d_left_side(left_side)
 {
     // intentionally blank
     return;
@@ -70,17 +66,13 @@ LevelSetInitialCondition::setDataOnPatch(const int data_idx,
                 coord[d] = patch_X_lower[d] + patch_dx[d] * (static_cast<double>(ci(d) - patch_lower_idx(d)) + 0.5);
             }
             double distance = std::numeric_limits<double>::quiet_NaN();
-#if (NDIM == 2)
-            distance = std::sqrt((coord[0] - d_origin[0]) * (coord[0] - d_origin[0]) +
-                                 (coord[1] - d_origin[1]) * (coord[1] - d_origin[1]));
-#endif
-#if (NDIM == 3)
-            distance = std::sqrt((coord[0] - d_origin[0]) * (coord[0] - d_origin[0]) +  ( coord[1] - d_origin[1]) * (coord[1] - d_origin[1]) + (coord[2] - d_origin[2]) * (coord[2] - d_origin[2]);
-#endif
+            distance = d_interface_loc[0] - coord[0];
             double sign = 0.0;
-            if (d_fluid_is_interior_to_cylinder) sign =  distance < d_radius ? 1.0 : -1.0;
-            else sign =  distance < d_radius ? -1.0 : 1.0;
-            (*D_data)(ci) = sign * std::abs(distance - d_radius);
+            if (d_left_side)
+                sign = distance < 0.0 ? 1.0 : -1.0;
+            else
+                sign = distance < 0.0 ? -1.0 : 1.0;
+            (*D_data)(ci) = sign * std::abs(distance);
         }
     }
     return;

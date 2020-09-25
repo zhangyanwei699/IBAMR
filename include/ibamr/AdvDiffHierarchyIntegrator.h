@@ -34,11 +34,6 @@
 #include <string>
 #include <vector>
 
-namespace IBAMR
-{
-class BrinkmanPenalizationAdvDiff;
-} // namespace IBAMR
-
 namespace IBTK
 {
 class CartGridFunction;
@@ -487,21 +482,6 @@ public:
      */
     int getResetPriority(SAMRAI::tbox::Pointer<SAMRAI::pdat::CellVariable<NDIM, double> > Q_var) const;
 
-    /*!
-     * \brief Register BrinkmanPenalizationAdvDiff object to add Brinkman penalization terms to the advection-diffusion
-     * solver.
-     */
-    virtual void
-    registerBrinkmanPenalization(SAMRAI::tbox::Pointer<IBAMR::BrinkmanPenalizationAdvDiff> brinkman_penalization);
-
-    /*!
-     * \brief Get the BrinkmanPenalizationAdvDiff object registered with this class.
-     */
-    const SAMRAI::tbox::Pointer<IBAMR::BrinkmanPenalizationAdvDiff>& getBrinkmanPenalization() const
-    {
-        return d_brinkman_penalization;
-    } // getBrinkmanPenalization
-
 protected:
     /*!
      * The constructor for class AdvDiffHierarchyIntegrator sets some default
@@ -630,11 +610,6 @@ protected:
         d_Q_reset_fcns;
     std::map<SAMRAI::tbox::Pointer<SAMRAI::pdat::CellVariable<NDIM, double> >, std::vector<void*> > d_Q_reset_fcns_ctx;
     std::vector<int> d_Q_reset_priority;
-
-    /*!
-     * Brinkman penalization object registred with this integrator.
-     */
-    SAMRAI::tbox::Pointer<IBAMR::BrinkmanPenalizationAdvDiff> d_brinkman_penalization;
 
     /*
      * Hierarchy operations objects.

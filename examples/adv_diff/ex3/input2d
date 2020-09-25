@@ -87,18 +87,6 @@ ENABLE_LOGGING       = TRUE
 MAX_INTEGRATOR_STEPS = 1                  // maximum number of integrator steps
 BRINKMAN_TIME_INDEPENDENT     = TRUE              // to zero out the temporal contribution
 
-
-
-AdvectorExplicitPredictorPatchOps {
-// Available values for limiter_type:
-// "CTU_ONLY", "MINMOD_LIMITED", "MC_LIMITED",
-// "SUPERBEE_LIMITED", "MUSCL_LIMITED"
-// "SECOND_ORDER", "FOURTH_ORDER",
-// "PPM", "XSPPM7"
-   limiter_type = "XSPPM7"
-   using_full_ctu = TRUE
-}
-
 AdvDiffSemiImplicitHierarchyIntegrator {
    start_time                    = START_TIME
    end_time                      = END_TIME
