@@ -100,7 +100,8 @@ EXTRA_PROGRAMS = mpi_type_wrappers$(EXEEXT) poisson_01_2d$(EXEEXT) \
 	ghost_accumulation_01_2d$(EXEEXT) \
 	ghost_accumulation_01_3d$(EXEEXT) ghost_indices_01_2d$(EXEEXT) \
 	ghost_indices_01_3d$(EXEEXT) ibtk_init$(EXEEXT) \
-	hierarchy_callbacks$(EXEEXT) ibtk_mpi$(EXEEXT) $(am__EXEEXT_1)
+	hierarchy_callbacks$(EXEEXT) ibtk_mpi$(EXEEXT) \
+	var_c_helmholtz_2d$(EXEEXT) $(am__EXEEXT_1)
 @LIBMESH_ENABLED_TRUE@am__append_1 = elem_hmax_01 elem_hmax_02 jacobian_calc_01 bounding_boxes_01_2d \
 @LIBMESH_ENABLED_TRUE@bounding_boxes_01_3d mapping_01 fe_values_01 fe_values_02 \
 @LIBMESH_ENABLED_TRUE@multilevel_fe_01_2d multilevel_fe_01_3d subdomain_level_translation_01
@@ -440,6 +441,14 @@ subdomain_level_translation_01_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(subdomain_level_translation_01_CXXFLAGS) $(CXXFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+am_var_c_helmholtz_2d_OBJECTS =  \
+	var_c_helmholtz_2d-var_c_helmholtz_2d.$(OBJEXT)
+var_c_helmholtz_2d_OBJECTS = $(am_var_c_helmholtz_2d_OBJECTS)
+var_c_helmholtz_2d_DEPENDENCIES = $(IBAMR2d_LIBS) $(IBAMR_LIBS)
+var_c_helmholtz_2d_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(var_c_helmholtz_2d_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 am_vc_viscous_solver_2d_OBJECTS =  \
 	vc_viscous_solver_2d-vc_viscous_solver.$(OBJEXT)
 vc_viscous_solver_2d_OBJECTS = $(am_vc_viscous_solver_2d_OBJECTS)
@@ -508,6 +517,7 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/samraidatacache_01_2d-samraidatacache_01.Po \
 	./$(DEPDIR)/samraidatacache_01_3d-samraidatacache_01.Po \
 	./$(DEPDIR)/subdomain_level_translation_01-subdomain_level_translation_01.Po \
+	./$(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po \
 	./$(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Po \
 	./$(DEPDIR)/vc_viscous_solver_3d-vc_viscous_solver.Po
 am__mv = mv -f
@@ -550,7 +560,7 @@ SOURCES = $(bounding_boxes_01_2d_SOURCES) \
 	$(samraidatacache_01_2d_SOURCES) \
 	$(samraidatacache_01_3d_SOURCES) \
 	$(subdomain_level_translation_01_SOURCES) \
-	$(vc_viscous_solver_2d_SOURCES) \
+	$(var_c_helmholtz_2d_SOURCES) $(vc_viscous_solver_2d_SOURCES) \
 	$(vc_viscous_solver_3d_SOURCES)
 DIST_SOURCES = $(am__bounding_boxes_01_2d_SOURCES_DIST) \
 	$(am__bounding_boxes_01_3d_SOURCES_DIST) \
@@ -578,7 +588,7 @@ DIST_SOURCES = $(am__bounding_boxes_01_2d_SOURCES_DIST) \
 	$(samraidatacache_01_2d_SOURCES) \
 	$(samraidatacache_01_3d_SOURCES) \
 	$(am__subdomain_level_translation_01_SOURCES_DIST) \
-	$(vc_viscous_solver_2d_SOURCES) \
+	$(var_c_helmholtz_2d_SOURCES) $(vc_viscous_solver_2d_SOURCES) \
 	$(vc_viscous_solver_3d_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -989,6 +999,9 @@ hierarchy_callbacks_SOURCES = hierarchy_callbacks.cpp
 @LIBMESH_ENABLED_TRUE@multilevel_fe_01_3d_CXXFLAGS = $(AM_CXXFLAGS) -DNDIM=3 -DSOURCE_DIR=\"$(abs_srcdir)\"
 @LIBMESH_ENABLED_TRUE@multilevel_fe_01_3d_LDADD = $(IBAMR_LDFLAGS) $(IBAMR3d_LIBS) $(IBAMR_LIBS)
 @LIBMESH_ENABLED_TRUE@multilevel_fe_01_3d_SOURCES = multilevel_fe_01.cpp
+var_c_helmholtz_2d_CXXFLAGS = $(AM_CXXFLAGS) -DNDIM=2
+var_c_helmholtz_2d_LDADD = $(IBAMR_LDFLAGS) $(IBAMR2d_LIBS) $(IBAMR_LIBS)
+var_c_helmholtz_2d_SOURCES = var_c_helmholtz_2d.cpp
 all: all-am
 
 .SUFFIXES:
@@ -1168,6 +1181,10 @@ subdomain_level_translation_01$(EXEEXT): $(subdomain_level_translation_01_OBJECT
 	@rm -f subdomain_level_translation_01$(EXEEXT)
 	$(AM_V_CXXLD)$(subdomain_level_translation_01_LINK) $(subdomain_level_translation_01_OBJECTS) $(subdomain_level_translation_01_LDADD) $(LIBS)
 
+var_c_helmholtz_2d$(EXEEXT): $(var_c_helmholtz_2d_OBJECTS) $(var_c_helmholtz_2d_DEPENDENCIES) $(EXTRA_var_c_helmholtz_2d_DEPENDENCIES) 
+	@rm -f var_c_helmholtz_2d$(EXEEXT)
+	$(AM_V_CXXLD)$(var_c_helmholtz_2d_LINK) $(var_c_helmholtz_2d_OBJECTS) $(var_c_helmholtz_2d_LDADD) $(LIBS)
+
 vc_viscous_solver_2d$(EXEEXT): $(vc_viscous_solver_2d_OBJECTS) $(vc_viscous_solver_2d_DEPENDENCIES) $(EXTRA_vc_viscous_solver_2d_DEPENDENCIES) 
 	@rm -f vc_viscous_solver_2d$(EXEEXT)
 	$(AM_V_CXXLD)$(vc_viscous_solver_2d_LINK) $(vc_viscous_solver_2d_OBJECTS) $(vc_viscous_solver_2d_LDADD) $(LIBS)
@@ -1218,6 +1235,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/samraidatacache_01_2d-samraidatacache_01.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/samraidatacache_01_3d-samraidatacache_01.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/subdomain_level_translation_01-subdomain_level_translation_01.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vc_viscous_solver_3d-vc_viscous_solver.Po@am__quote@ # am--include-marker
 
@@ -1755,6 +1773,20 @@ subdomain_level_translation_01-subdomain_level_translation_01.obj: subdomain_lev
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(subdomain_level_translation_01_CXXFLAGS) $(CXXFLAGS) -c -o subdomain_level_translation_01-subdomain_level_translation_01.obj `if test -f 'subdomain_level_translation_01.cpp'; then $(CYGPATH_W) 'subdomain_level_translation_01.cpp'; else $(CYGPATH_W) '$(srcdir)/subdomain_level_translation_01.cpp'; fi`
 
+var_c_helmholtz_2d-var_c_helmholtz_2d.o: var_c_helmholtz_2d.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(var_c_helmholtz_2d_CXXFLAGS) $(CXXFLAGS) -MT var_c_helmholtz_2d-var_c_helmholtz_2d.o -MD -MP -MF $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Tpo -c -o var_c_helmholtz_2d-var_c_helmholtz_2d.o `test -f 'var_c_helmholtz_2d.cpp' || echo '$(srcdir)/'`var_c_helmholtz_2d.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Tpo $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='var_c_helmholtz_2d.cpp' object='var_c_helmholtz_2d-var_c_helmholtz_2d.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(var_c_helmholtz_2d_CXXFLAGS) $(CXXFLAGS) -c -o var_c_helmholtz_2d-var_c_helmholtz_2d.o `test -f 'var_c_helmholtz_2d.cpp' || echo '$(srcdir)/'`var_c_helmholtz_2d.cpp
+
+var_c_helmholtz_2d-var_c_helmholtz_2d.obj: var_c_helmholtz_2d.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(var_c_helmholtz_2d_CXXFLAGS) $(CXXFLAGS) -MT var_c_helmholtz_2d-var_c_helmholtz_2d.obj -MD -MP -MF $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Tpo -c -o var_c_helmholtz_2d-var_c_helmholtz_2d.obj `if test -f 'var_c_helmholtz_2d.cpp'; then $(CYGPATH_W) 'var_c_helmholtz_2d.cpp'; else $(CYGPATH_W) '$(srcdir)/var_c_helmholtz_2d.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Tpo $(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='var_c_helmholtz_2d.cpp' object='var_c_helmholtz_2d-var_c_helmholtz_2d.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(var_c_helmholtz_2d_CXXFLAGS) $(CXXFLAGS) -c -o var_c_helmholtz_2d-var_c_helmholtz_2d.obj `if test -f 'var_c_helmholtz_2d.cpp'; then $(CYGPATH_W) 'var_c_helmholtz_2d.cpp'; else $(CYGPATH_W) '$(srcdir)/var_c_helmholtz_2d.cpp'; fi`
+
 vc_viscous_solver_2d-vc_viscous_solver.o: vc_viscous_solver.cpp
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(vc_viscous_solver_2d_CXXFLAGS) $(CXXFLAGS) -MT vc_viscous_solver_2d-vc_viscous_solver.o -MD -MP -MF $(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Tpo -c -o vc_viscous_solver_2d-vc_viscous_solver.o `test -f 'vc_viscous_solver.cpp' || echo '$(srcdir)/'`vc_viscous_solver.cpp
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Tpo $(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Po
@@ -1950,6 +1982,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/samraidatacache_01_2d-samraidatacache_01.Po
 	-rm -f ./$(DEPDIR)/samraidatacache_01_3d-samraidatacache_01.Po
 	-rm -f ./$(DEPDIR)/subdomain_level_translation_01-subdomain_level_translation_01.Po
+	-rm -f ./$(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po
 	-rm -f ./$(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Po
 	-rm -f ./$(DEPDIR)/vc_viscous_solver_3d-vc_viscous_solver.Po
 	-rm -f Makefile
@@ -2033,6 +2066,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/samraidatacache_01_2d-samraidatacache_01.Po
 	-rm -f ./$(DEPDIR)/samraidatacache_01_3d-samraidatacache_01.Po
 	-rm -f ./$(DEPDIR)/subdomain_level_translation_01-subdomain_level_translation_01.Po
+	-rm -f ./$(DEPDIR)/var_c_helmholtz_2d-var_c_helmholtz_2d.Po
 	-rm -f ./$(DEPDIR)/vc_viscous_solver_2d-vc_viscous_solver.Po
 	-rm -f ./$(DEPDIR)/vc_viscous_solver_3d-vc_viscous_solver.Po
 	-rm -f Makefile
