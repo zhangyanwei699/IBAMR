@@ -48,4 +48,19 @@ get_min_patch_dx(const PatchLevel<NDIM>& patch_level)
 
     return result;
 } // get_min_patch_dx
+
+bool
+rel_equal_eps(const double a, const double b, const double eps)
+{
+    if (a == b) return true;
+    double abs_max = std::max(std::abs(a), std::abs(b));
+    return (std::abs(a - b) / abs_max) < eps;
+}
+
+bool
+abs_equal_eps(const double a, const double b, const double eps)
+{
+    return std::abs(a - b) < eps;
+}
+
 } // namespace IBTK
